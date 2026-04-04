@@ -5,23 +5,74 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0a0a0f">
   <meta name="description" content="Morpheus Echo - Whisper your truth. Echo your soul. Anonymous confession platform.">
-  <meta name="keywords" content="anonymous, confession, voice, social, secrets, whisper, morpheus, echo">
+  <meta name="keywords" content="anonymous, confession, voice, social, secrets, whisper">
   <meta name="author" content="NIKUNJ SINGH">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   
   <title>Morpheus Echo | Whisper Your Truth</title>
-  
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="/morpheus-logo.png">
-  <link rel="apple-touch-icon" href="/morpheus-logo.png">
   
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- Custom CSS -->
-  <link rel="stylesheet" href="/src/style.css">
+  <link rel="stylesheet" href="./style.css">
   
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #0a0a0f;
+      color: #ffffff;
+    }
+    
+    #root {
+      min-height: 100vh;
+      width: 100%;
+    }
+    
+    .loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #0a0a0f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.5s ease;
+    }
+    
+    .loading-orb {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      animation: pulse 1.5s ease-in-out infinite;
+      box-shadow: 0 0 30px rgba(124, 58, 237, 0.5);
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.2); opacity: 1; }
+    }
+    
+    .loading-text {
+      margin-top: 24px;
+      font-family: 'Cinzel', serif;
+      font-size: 1.25rem;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 0.2em;
+    }
+  </style>
 </head>
 <body>
   <div class="loading-screen" id="loading-screen">
@@ -31,10 +82,8 @@
   
   <div id="root"></div>
   
-  <script type="module" src="/src/main.jsx"></script>
-  
   <script>
-    // Hide loading screen when React mounts
+    // Hide loading screen when page loads
     window.addEventListener('load', function() {
       setTimeout(function() {
         var loader = document.getElementById('loading-screen');
@@ -44,8 +93,10 @@
             loader.style.display = 'none';
           }, 500);
         }
-      }, 1500);
+      }, 1000);
     });
   </script>
+  
+  <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>
