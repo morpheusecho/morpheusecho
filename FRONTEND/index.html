@@ -93,30 +93,11 @@
     }
   </script>
   
-  <!-- React & ReactDOM -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  
-  <!-- Babel for JSX -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  
-  <!-- React Router -->
-  <script src="https://unpkg.com/react-router-dom@6/umd/react-router-dom.production.min.js"></script>
-  
-  <!-- Socket.IO Client -->
-  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
-  
-  <!-- Framer Motion -->
-  <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
-  
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  
   <!-- Custom Styles -->
   <link rel="stylesheet" href="/style.css">
   
+  <!-- Loading Screen Style -->
   <style>
-    /* Critical CSS - Load immediately */
     * {
       margin: 0;
       padding: 0;
@@ -134,7 +115,6 @@
       background: #111111;
       color: #EEEEEE;
       -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
     }
     
     #loading-screen {
@@ -175,7 +155,6 @@
       letter-spacing: 0.2em;
     }
     
-    /* Scrollbar styling */
     ::-webkit-scrollbar {
       width: 6px;
       height: 6px;
@@ -189,32 +168,17 @@
       background: #6C63FF;
       border-radius: 3px;
     }
-    
-    ::-webkit-scrollbar-thumb:hover {
-      background: #9D97FF;
-    }
-    
-    /* Selection styling */
-    ::selection {
-      background: rgba(108, 99, 255, 0.3);
-      color: #FFFFFF;
-    }
   </style>
 </head>
 <body>
-  <!-- Loading Screen -->
   <div id="loading-screen">
     <div class="loading-orb"></div>
     <p class="loading-text">MORPHEUS ECHO</p>
   </div>
   
-  <!-- React Root -->
   <div id="root"></div>
   
-  <!-- Main Application Script -->
-  <script type="text/babel" src="/App.jsx"></script>
-  
-  <!-- Client-side Logic -->
-  <script src="/main.js"></script>
+  <!-- React and Dependencies will be loaded by Vite -->
+  <script type="module" src=""MORPHEUS_ECHO\FRONTEND\main.js""></script>
 </body>
 </html>

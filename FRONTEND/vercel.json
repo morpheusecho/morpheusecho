@@ -3,7 +3,7 @@
   "name": "morpheus-echo-frontend",
   "builds": [
     {
-      "src": "**/*",
+      "src": "dist/**",
       "use": "@vercel/static"
     }
   ],

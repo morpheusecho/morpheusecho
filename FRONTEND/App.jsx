@@ -7,8 +7,8 @@
  * =============================================================================
  */
 
-const { useState, useEffect, useRef, useCallback, useContext, createContext } = React;
-const { BrowserRouter, Routes, Route, Link, useNavigate, useParams, Navigate } = ReactRouterDOM;
+import React, { useState, useEffect, useRef, useCallback, useContext, createContext } from 'react';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, Navigate } from 'react-router-dom';
 
 // =============================================================================
 // MOCK DATA FOR DEMO
@@ -363,17 +363,17 @@ const ConfessionCard = ({ confession }) => {
 
   const handleReaction = (reactionType) => {
     setLocalReactions(prev => {
-      const hasReacted = prev[reactionType]?.includes(user.id);
+      const hasReacted = prev[reactionType]?.includes(user?.id);
       return {
         ...prev,
         [reactionType]: hasReacted
-          ? prev[reactionType].filter(id => id !== user.id)
-          : [...(prev[reactionType] || []), user.id]
+          ? prev[reactionType].filter(id => id !== user?.id)
+          : [...(prev[reactionType] || []), user?.id]
       };
     });
   };
 
-  const hasReacted = (type) => localReactions[type]?.includes(user.id);
+  const hasReacted = (type) => localReactions[type]?.includes(user?.id);
   const reactionCount = (type) => localReactions[type]?.length || 0;
 
   return (
@@ -1161,8 +1161,4 @@ const App = () => (
   </BrowserRouter>
 );
 
-// =============================================================================
-// RENDER APP
-// =============================================================================
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+export default App;
