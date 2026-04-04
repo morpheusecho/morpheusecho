@@ -1,33 +1,17 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#111111">
   <meta name="description" content="Morpheus Echo - Whisper your truth. Echo your soul. Anonymous confession platform.">
-  <meta name="keywords" content="anonymous, confession, voice, social, secrets, whisper">
-  <meta name="author" content="NIKUNJ SINGH">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  
   <title>Morpheus Echo | Whisper Your Truth</title>
-  
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="/morpheus-logo.png">
-  <link rel="apple-touch-icon" href="/morpheus-logo.png">
-  
-  <!-- Preconnect to external resources -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- Tailwind CSS CDN -->
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- Tailwind Config -->
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -39,54 +23,9 @@
             'echo-card': '#2D2D44',
             'echo-accent': '#6C63FF',
             'echo-accent-light': '#9D97FF',
-            'echo-gold': '#C9A84C',
-            'echo-teal': '#4FC3C3',
-            'echo-error': '#EF4444',
-            'mythic': '#FF00FF',
-            'legendary': '#FFD700',
-            'exclusive': '#00FFFF',
-            'rare': '#C9A84C',
-            'uncommon': '#C0C0C0',
-            'common': '#9CA3AF'
           },
           fontFamily: {
-            'sans': ['Inter', 'system-ui', 'sans-serif'],
             'display': ['Cinzel', 'serif']
-          },
-          animation: {
-            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-            'glow': 'glow 2s ease-in-out infinite alternate',
-            'float': 'float 3s ease-in-out infinite',
-            'shimmer': 'shimmer 2s linear infinite',
-            'rainbow': 'rainbow 4s linear infinite',
-            'sparkle': 'sparkle 1.5s ease-in-out infinite',
-            'orbit': 'orbit 8s linear infinite'
-          },
-          keyframes: {
-            glow: {
-              '0%': { boxShadow: '0 0 5px #6C63FF, 0 0 10px #6C63FF' },
-              '100%': { boxShadow: '0 0 20px #6C63FF, 0 0 30px #6C63FF' }
-            },
-            float: {
-              '0%, 100%': { transform: 'translateY(0)' },
-              '50%': { transform: 'translateY(-10px)' }
-            },
-            shimmer: {
-              '0%': { backgroundPosition: '-200% 0' },
-              '100%': { backgroundPosition: '200% 0' }
-            },
-            rainbow: {
-              '0%': { filter: 'hue-rotate(0deg)' },
-              '100%': { filter: 'hue-rotate(360deg)' }
-            },
-            sparkle: {
-              '0%, 100%': { opacity: '0.3', transform: 'scale(0.8)' },
-              '50%': { opacity: '1', transform: 'scale(1.2)' }
-            },
-            orbit: {
-              '0%': { transform: 'rotate(0deg) translateX(30px) rotate(0deg)' },
-              '100%': { transform: 'rotate(360deg) translateX(30px) rotate(-360deg)' }
-            }
           }
         }
       }
@@ -95,90 +34,13 @@
   
   <!-- Custom Styles -->
   <link rel="stylesheet" href="/style.css">
-  
-  <!-- Loading Screen Style -->
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
-    html, body, #root {
-      height: 100%;
-      width: 100%;
-      overflow-x: hidden;
-    }
-    
-    body {
-      font-family: 'Inter', system-ui, sans-serif;
-      background: #111111;
-      color: #EEEEEE;
-      -webkit-font-smoothing: antialiased;
-    }
-    
-    #loading-screen {
-      position: fixed;
-      inset: 0;
-      background: #111111;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      transition: opacity 0.5s ease;
-    }
-    
-    #loading-screen.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-    
-    .loading-orb {
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #6C63FF, #9D97FF);
-      animation: loadingPulse 1.5s ease-in-out infinite;
-    }
-    
-    @keyframes loadingPulse {
-      0%, 100% { transform: scale(1); opacity: 0.8; }
-      50% { transform: scale(1.2); opacity: 1; }
-    }
-    
-    .loading-text {
-      margin-top: 24px;
-      font-family: 'Cinzel', serif;
-      font-size: 1.25rem;
-      color: #9D97FF;
-      letter-spacing: 0.2em;
-    }
-    
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    
-    ::-webkit-scrollbar-track {
-      background: #1A1A2E;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-      background: #6C63FF;
-      border-radius: 3px;
-    }
-  </style>
 </head>
 <body>
   <div id="loading-screen">
     <div class="loading-orb"></div>
     <p class="loading-text">MORPHEUS ECHO</p>
   </div>
-  
   <div id="root"></div>
-  
-  <!-- React and Dependencies will be loaded by Vite -->
-  <script type="module" src=""MORPHEUS_ECHO\FRONTEND\main.js""></script>
+  <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>
