@@ -1,0 +1,426 @@
+================================================================================
+                    MORPHEUS ECHO - PROJECT DETAILS & PROGRESS
+================================================================================
+
+PROJECT OWNER: NIKUNJ SINGH
+EMAIL: join.morpheusecho@gmail.com
+DATE CREATED: April 3, 2026
+VERSION: 1.0.0
+
+================================================================================
+                              PROJECT OVERVIEW
+================================================================================
+
+Morpheus Echo is a revolutionary anonymous confession social media platform
+that allows users to share their deepest truths without ever revealing their
+identity. Every user receives a procedurally generated secret identity - a
+unique combination of color, creature, location, and number - creating over
+2.5 billion possible unique identities.
+
+CORE FEATURES IMPLEMENTED:
+✅ Anonymous identity generation with 6 rarity tiers (Mythic 0.1% to Common 60.9%)
+✅ Text and voice confessions with 5 voice effects (Normal, Whisper, Deep, Echo, Robotic)
+✅ 12 content categories with color-coded pills
+✅ 6 reaction types (Me Too, Sending Love, Wow, Same Lol, Stay Strong, Respect)
+✅ Real-time anonymous messaging system
+✅ Radio mode for passive listening to voice confessions
+✅ XP and level progression system (1-300 levels, 6 titles)
+✅ Badge system with 7 unique badges
+✅ Blur-to-reveal content mechanic
+✅ Content moderation with toxicity detection
+✅ Emotion detection for feed personalization
+✅ Heat score algorithm for trending content
+✅ Follow/unfollow system
+✅ Notification system with real-time updates
+✅ Infinite scroll feed with category filtering
+✅ Mobile-first responsive design
+
+================================================================================
+                              FOLDER STRUCTURE
+================================================================================
+
+MORPHEUS_ECHO/
+├── BACKEND/
+│   ├── server.js          (Complete Node.js backend - 1500+ lines)
+│   └── package.json       (Dependencies and scripts)
+│
+├── FRONTEND/
+│   ├── index.html         (Main HTML container with CDN links)
+│   ├── style.css          (Complete CSS - 2000+ lines with animations)
+│   ├── main.js            (Client-side logic - 1000+ lines)
+│   └── App.jsx            (React SPA - 2000+ lines)
+│
+├── MEDIA/
+│   ├── morpheus.png       (Main logo)
+│   └── transparent-logo.png (Transparent logo variant)
+│
+├── DOCUMENT/
+│   ├── master_document.docx (Complete project documentation)
+│   └── project_details.txt  (This file - progress & improvements)
+│
+└── CREDENTIAL/
+    └── credentials.env    (All API keys, passwords, secrets)
+
+================================================================================
+                              TECH STACK
+================================================================================
+
+FRONTEND:
+- React 18 (via CDN)
+- React Router v6 (via CDN)
+- Tailwind CSS (via CDN)
+- Framer Motion (via CDN for animations)
+- Socket.IO Client (via CDN)
+- Lucide Icons (via CDN)
+- Web Audio API (for voice effects)
+
+BACKEND:
+- Node.js
+- Express.js
+- MongoDB (Mongoose)
+- Socket.IO
+- JWT Authentication
+- Cloudinary (media storage)
+- Redis (Upstash) - caching & real-time data
+- bcryptjs (password hashing)
+
+HOSTING:
+- Frontend: Vercel
+- Backend: Render
+- Database: MongoDB Atlas
+- Media: Cloudinary
+- Cache: Upstash Redis
+
+================================================================================
+                              IDENTITY SYSTEM
+================================================================================
+
+RARITY TIERS & PROBABILITIES:
+
+MYTHIC (0.1%):
+- Creatures: Aion, Ananta Shesha, Yggdrasil, Khaos, Amarok, Terra, Cosmos,
+  Dreamweaver, Echo, Nyxborn, Stardrifter, Timeless, Voidwalker, Morph, Phantasm
+- Locations: The Void, Eternity, Dreamscape, The In-Between, Neverwhen,
+  Aeternum, Infinitum, Origin Point, The Stillness, Nowhere, Everywhen,
+  The Between, Nexus, Threshold, Zero Point
+- Colors: Prismatic, Aetherial, Null, Omni, Voidtouched, Timeless, Infinity, Absolute
+
+LEGENDARY (1%):
+- Creatures: Phoenix, Dragon, Griffin, Kraken, Unicorn, Cerberus, Hydra,
+  Chimera, Sphinx, Thunderbird, Qilin, Roc, Leviathan, Fenrir, Garuda,
+  Anzu, Sleipnir, Tiamat, Ammit, Bunyip, Wendigo, Kitsune, Tanuki, Nue, Yuki-onna
+- Locations: Avalon, Atlantis, El Dorado, Shangri-La, Camelot, Olympus,
+  Asgard, Nirvana, Elysium, Shambhala, Xanadu, Hyperborea, Lemuria, Mu,
+  Yomi, Valhalla, Tír na nÓg, Elphame, Styx, Hades
+- Colors: Starfire, Moonshadow, Sunflare, Duskfall, Dawnbringer, Stormeye, Dreamlight, Chaosflame
+
+EXCLUSIVE (3%):
+- Creatures: Manticore, Hippogriff, Wyvern, Basilisk, Harpy, Oni, Tengu,
+  Kappa, Jorōgumo, Rokurokubi, Bake-danuki, Kamaitachi, Baku, Nekomata,
+  Isonade, Namazu, Futakuchi-onna, Ushi-oni, Dullahan, Banshee, Púca,
+  Selkie, Merrow, Kelpie
+- Locations: Vatican, Lhasa, Bodh Gaya, Uluru, Mount Kailash, Delphi,
+  Mecca, Medina, Amritsar, Lalibela, Stonehenge, Petra, Machu Picchu,
+  Angkor, Teotihuacan, Pompeii, Troy, Carthage, Persepolis, Mohenjo-Daro,
+  Easter Island, Timbuktu, Samarkand, Constantinople
+- Colors: Abyssal, Ethereal, Spectral, Phantasmal, Astral, Celestial, Nebula, Cosmic
+
+RARE (10%):
+- Creatures: Panther, Tiger, Falcon, White Whale, Snow Leopard, Manticore,
+  Hippogriff, Wyvern, Basilisk, Harpy, Golden Eagle, Arctic Fox, Black Wolf, Silver Stag
+- Locations: Kyoto, Babylon, Alexandria, Edinburgh, Prague, Venice, Istanbul,
+  Marrakech, Cairo, Varanasi, Jerusalem, Santiago, Lalibela, Bhutan
+- Colors: Crimson, Azure, Emerald, Amber, Violet, Obsidian, Pearl, Jade, Ruby, Sapphire
+
+UNCOMMON (25%):
+- Creatures: Snow Leopard, Manta Ray, Orca, Lynx, Ocelot, Octopus, Peacock,
+  Swan, Arctic Wolf, Red Panda, Koala, Kangaroo, Otter, Hedgehog
+- Locations: Siberia, Transylvania, Himalayas, Amazon, Sahara, Andes, Iceland,
+  Madagascar, Patagonia, Nepal, Bhutan, Mongolia, Tibet, Zanskar
+- Colors: Moss, Clay, Sand, Storm, Frost, Dawn, Dusk, Twilight, Forest, Ocean
+
+COMMON (60.9%):
+- Creatures: Dog, Cat, Fox, Eagle, Wolf, Raven, Owl, Snake, Horse, Deer,
+  Bear, Lion, Elephant, Dolphin, Rabbit, Squirrel, Hawk, Crow
+- Locations: Oslo, Tokyo, Delhi, Cairo, Paris, London, New York, Sydney,
+  Rio, Cape Town, Mumbai, Bangkok, Seoul, Singapore, Dubai, Barcelona,
+  Rome, Berlin, Moscow, Toronto, Mexico City, Lagos, Nairobi, Jakarta
+- Colors: Red, Blue, Green, Yellow, Purple, Orange, Pink, Brown, Black, White,
+  Gray, Navy, Teal, Coral, Lavender, Maroon, Olive, Turquoise
+
+IDENTITY FORMAT: [Color] [Creature] of [Location] [Number 1-10]
+EXAMPLE: "Crimson Unicorn of Kyoto 7"
+
+================================================================================
+                              LEVEL SYSTEM
+================================================================================
+
+LEVEL RANGES & TITLES:
+- Level 1-25: Whisperer (0-2,499 XP)
+- Level 26-75: Shadow Voice (2,500-7,499 XP)
+- Level 76-150: Confessor (7,500-14,999 XP)
+- Level 151-250: Void Speaker (15,000-24,999 XP)
+- Level 251-299: Phantom (25,000-29,899 XP)
+- Level 300: Legend (29,900+ XP)
+
+XP REWARDS:
+- Post confession: +10 XP
+- Receive reaction: +2 XP
+- Receive comment: +5 XP
+- Daily activity: +20 XP
+- 7-day streak: +100 XP (one-time)
+- 30-day streak: +500 XP (one-time)
+- Level up bonus: +50 XP
+
+================================================================================
+                              BADGE SYSTEM
+================================================================================
+
+BADGES:
+1. Creative Badge (Green) - 10+ reactions on funny posts
+2. Emotional Badge (Blue) - Consistent emotional posting
+3. Dark Badge (Purple) - High engagement on dark posts
+4. Romantic Badge (Pink) - Popular romantic confessions
+5. Spiritual Badge (Gold) - Community love on spiritual posts
+6. Mythical Badge (Silver) - Legendary/Mythic creature holder
+7. Legend Badge (Rainbow) - Level 300 only
+
+================================================================================
+                              CONTENT CATEGORIES
+================================================================================
+
+1. Adult (#8B0000) - Mature themes
+2. Crime (#4A4A4A) - True crime stories
+3. Funny (#FFD700) - Humorous confessions
+4. Romantic Crush (#FF69B4) - Secret feelings
+5. Insult (#FF8C00) - Venting frustration
+6. Sorrow & Grief (#191970) - Loss and sadness
+7. Pain (#800000) - Physical/emotional suffering
+8. To The God (#FFD700) - Spiritual confessions
+9. Dear Family (#8B4513) - Family matters
+10. Unpopular Opinions (#800080) - Controversial takes
+11. Work & Career (#008080) - Workplace secrets
+12. Mental Health (#90EE90) - Inner struggles
+
+================================================================================
+                              VOICE EFFECTS
+================================================================================
+
+1. Normal - No processing, raw audio
+2. Whisper - High-pass filter + gain reduction
+3. Deep - Pitch shift -5 semitones + bass boost
+4. Echo - Delay node (0.3s) + feedback loop
+5. Robotic - Ring modulation (100Hz carrier)
+
+AMBIENT SOUNDS:
+- Silence
+- Rain
+- Night Crickets
+- Cafe
+- Ocean Waves
+- Thunder
+- Fireplace
+
+================================================================================
+                              API ENDPOINTS
+================================================================================
+
+AUTHENTICATION:
+POST /api/auth/signup - Create new account
+POST /api/auth/login - Login existing account
+
+FEED:
+GET /api/feed?category=&sort=&page=&limit= - Get confession feed
+
+CONFESSIONS:
+POST /api/confessions - Create new confession
+GET /api/confessions/:id - Get single confession
+POST /api/confessions/:id/react - React to confession
+GET /api/confessions/:id/comments - Get comments
+POST /api/confessions/:id/comments - Add comment
+GET /api/confessions/random - Get random confession (for radio)
+
+USERS:
+GET /api/users/:id - Get user profile
+GET /api/users/:id/confessions - Get user confessions
+POST /api/users/:id/follow - Follow/unfollow user
+
+MESSAGES:
+GET /api/messages - Get conversations
+GET /api/messages/:userId - Get messages with user
+POST /api/messages - Send message
+
+NOTIFICATIONS:
+GET /api/notifications - Get notifications
+PATCH /api/notifications/read-all - Mark all as read
+
+RADIO:
+GET /api/radio?category= - Get radio queue
+
+UPLOAD:
+POST /api/upload/audio - Upload audio file
+
+OTHER:
+GET /api/categories - Get all categories
+GET /api/stats - Get platform stats
+GET /health - Health check
+
+================================================================================
+                              SOCKET.IO EVENTS
+================================================================================
+
+CLIENT EMITS:
+- authenticate { userId } - Authenticate socket connection
+- send_message { to, content, from } - Send message
+- new_reaction { confessionId, authorId, reactionType, from } - Send reaction
+
+SERVER EMITS:
+- new_message { from, content, timestamp, messageId } - New message received
+- reaction_notification { confessionId, type, from } - Reaction received
+- comment_notification { confessionId, commenterName } - Comment received
+- follow_notification { followerName } - New follower
+- level_up { newLevel, title } - Level up achieved
+- notification { type, message, data } - General notification
+
+================================================================================
+                              SECURITY FEATURES
+================================================================================
+
+1. JWT Authentication with 7-day expiry
+2. Password hashing with bcryptjs
+3. Content moderation with toxicity detection
+4. Age verification (18+ required)
+5. Blur-to-reveal for sensitive content
+6. Anonymous messaging (no real names exposed)
+7. Rate limiting on API endpoints
+8. CORS configuration
+9. Input validation on all endpoints
+
+================================================================================
+                              DEPLOYMENT INFORMATION
+================================================================================
+
+FRONTEND DEPLOYMENT (Vercel):
+- Connect GitHub repository to Vercel
+- Set framework preset to "Other"
+- Build command: (none - static files)
+- Output directory: FRONTEND
+- Environment variables: None required for frontend
+
+BACKEND DEPLOYMENT (Render):
+- Create Web Service
+- Connect GitHub repository
+- Build command: cd BACKEND && npm install
+- Start command: cd BACKEND && npm start
+- Environment variables: See credentials.env
+
+DATABASE (MongoDB Atlas):
+- Cluster: Cluster0
+- Database: morpheusecho
+- Connection string in credentials.env
+
+MEDIA STORAGE (Cloudinary):
+- Cloud name: dtjndb55i
+- Used for audio file storage
+
+CACHE (Upstash Redis):
+- URL: https://becoming-kid-86788.upstash.io
+- Used for real-time data and caching
+
+================================================================================
+                              IMPROVEMENTS MADE
+================================================================================
+
+1. ENHANCED IDENTITY SYSTEM:
+   - Expanded from 4 tiers to 6 tiers (added Mythic 0.1% and Exclusive 3%)
+   - Added 60+ mythical creatures from various cultures
+   - Added 50+ mysterious locations (real and mythical)
+   - Added 60+ colors including mythic-exclusive colors
+
+2. ADVANCED RARITY VISUALS:
+   - Rainbow animated border for Mythic tier
+   - Pulsing magenta-gold for Legendary
+   - Diamond glints for Exclusive
+   - Static gold for Rare
+   - Subtle silver for Uncommon
+   - Clean minimal for Common
+
+3. IMPROVED UI/UX:
+   - Hold-to-reveal mechanic with progress ring
+   - Real-time waveform visualization
+   - Smooth page transitions with Framer Motion
+   - Mobile-first responsive design
+   - Bottom nav for mobile, sidebar for desktop
+
+4. ENHANCED AUDIO FEATURES:
+   - 5 voice distortion effects
+   - 7 ambient sound options
+   - Audio recording with timer
+   - Cloudinary integration for storage
+
+5. ADVANCED ALGORITHMS:
+   - Heat score calculation with time decay
+   - Emotion detection from text
+   - Content moderation with keyword filtering
+   - XP and level progression system
+
+6. REAL-TIME FEATURES:
+   - Socket.IO for live messaging
+   - Real-time notifications
+   - Live reaction updates
+   - Radio mode with auto-play
+
+================================================================================
+                              FUTURE ENHANCEMENTS
+================================================================================
+
+1. AI-POWERED FEATURES:
+   - Gemini API integration for content moderation
+   - OpenAI API for advanced emotion detection
+   - Automatic content summarization
+   - Smart feed recommendations
+
+2. ADVANCED VOICE FEATURES:
+   - More voice effects (Demon, Angel, Underwater)
+   - Background music integration
+   - Voice-to-text transcription
+   - Voice cloning protection
+
+3. SOCIAL FEATURES:
+   - Group confessions
+   - Confession chains/threads
+   - Anonymous polls
+   - Community challenges
+
+4. GAMIFICATION:
+   - Daily quests
+   - Achievement system
+   - Leaderboards
+   - Special events
+
+5. MONETIZATION:
+   - Premium subscriptions
+   - Custom identity colors
+   - Exclusive badges
+   - Ad-free experience
+
+================================================================================
+                              CONTACT & SUPPORT
+================================================================================
+
+Project Owner: NIKUNJ SINGH
+Email: join.morpheusecho@gmail.com
+GitHub: https://github.com/morpheusecho/morpheusecho.git
+
+For support, feature requests, or bug reports, please contact via email.
+
+================================================================================
+                              LICENSE
+================================================================================
+
+MIT License - 2026 Morpheus Echo
+All rights reserved.
+
+================================================================================
+                          END OF PROJECT DETAILS
+================================================================================
