@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#111111">
   <meta name="description" content="Morpheus Echo - Whisper your truth. Echo your soul. Anonymous confession platform.">
+  <meta name="keywords" content="anonymous, confession, voice, social, secrets, whisper">
+  <meta name="author" content="NIKUNJ SINGH">
   <title>Morpheus Echo | Whisper Your Truth</title>
   
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- Tailwind CSS -->
+  <!-- Tailwind CSS CDN (for utility classes) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -23,8 +25,18 @@
             'echo-card': '#2D2D44',
             'echo-accent': '#6C63FF',
             'echo-accent-light': '#9D97FF',
+            'echo-gold': '#C9A84C',
+            'echo-teal': '#4FC3C3',
+            'echo-error': '#EF4444',
+            'mythic': '#FF00FF',
+            'legendary': '#FFD700',
+            'exclusive': '#00FFFF',
+            'rare': '#C9A84C',
+            'uncommon': '#C0C0C0',
+            'common': '#9CA3AF'
           },
           fontFamily: {
+            'sans': ['Inter', 'system-ui', 'sans-serif'],
             'display': ['Cinzel', 'serif']
           }
         }
@@ -32,14 +44,10 @@
     }
   </script>
   
-  <!-- Custom Styles -->
-  <link rel="stylesheet" href="/style.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
-  <div id="loading-screen">
-    <div class="loading-orb"></div>
-    <p class="loading-text">MORPHEUS ECHO</p>
-  </div>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>

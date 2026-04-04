@@ -2,8 +2,7 @@
 export default {
   content: [
     "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-    "./App.jsx",
+    "./src/**/*.{js,jsx,ts,tsx}",
   ],
   theme: {
     extend: {
@@ -15,8 +14,8 @@ export default {
         'echo-accent-light': '#9D97FF',
       },
       fontFamily: {
-        'display': ['Cinzel', 'serif']
-      }
+        'display': ['Cinzel', 'serif'],
+      },
     },
   },
   plugins: [],

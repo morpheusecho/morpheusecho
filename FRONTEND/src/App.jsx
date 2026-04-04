@@ -1,14 +1,164 @@
-/**
- * =============================================================================
- * MORPHEUS ECHO - REACT APPLICATION (DEMO MODE)
- * =============================================================================
- * Complete React SPA with mock data for demo preview
- * Works without backend connection
- * =============================================================================
- */
-
 import React, { useState, useEffect, useRef, useCallback, useContext, createContext } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, Navigate } from 'react-router-dom';
+
+// =============================================================================
+// IDENTITY POOLS - YOUR EXACT SCHEME
+// =============================================================================
+
+// 🦁 CREATURES (100+ from your list)
+const CREATURES = {
+  NORMAL: [
+    'Lion', 'Tiger', 'Elephant', 'Dog', 'Cat', 'Horse', 'Cow', 'Buffalo', 'Goat', 'Sheep',
+    'Monkey', 'Gorilla', 'Deer', 'Rabbit', 'Fox', 'Wolf', 'Bear', 'Zebra', 'Giraffe', 'Kangaroo',
+    'Panda', 'Leopard', 'Cheetah', 'Hyena', 'Camel', 'Donkey', 'Pig', 'Rat', 'Squirrel', 'Otter',
+    'Dolphin', 'Whale', 'Shark', 'Octopus', 'Crocodile', 'Alligator', 'Snake', 'Lizard', 'Frog', 'Turtle',
+    'Eagle', 'Owl', 'Parrot', 'Peacock', 'Penguin', 'Flamingo', 'Crow', 'Pigeon', 'Sparrow', 'Chicken'
+  ],
+  MYTHICAL: [
+    'Dragon', 'Phoenix', 'Unicorn', 'Griffin', 'Pegasus', 'Hydra', 'Cerberus', 'Minotaur', 'Cyclops', 'Mermaid'
+  ],
+  HORROR: [
+    'Vampire', 'Werewolf', 'Zombie', 'Wendigo', 'Banshee', 'Skinwalker', 'Chupacabra', 'Mothman', 'Slenderman', 'Doppelgänger'
+  ],
+  CRYPTID: [
+    'Yeti', 'Bigfoot', 'Loch Ness Monster', 'Kraken', 'Megalodon', 'Basilisk', 'Thunderbird', 'Jersey Devil', 'El Chupacabra', 'Leviathan'
+  ],
+  DARK_LEGENDS: [
+    'Black Shuck', 'Nuckelavee', 'Aswang', 'Pontianak', 'Dullahan', 'Manananggal', 'Tikbalang', 'Bakunawa', 'Sigbin', 'Tiyanak'
+  ],
+  ASIAN_MYTH: [
+    'Kappa', 'Jorōgumo', 'Ahool', 'Ammit', 'Qilin', 'Oni', 'Tengu', 'Kitsune', 'Tanuki', 'Nue'
+  ],
+  SUPER_RARE: [
+    'Loveland Frogman', 'Flatwoods Monster', 'Enfield Horror', 'Mokele-Mbembe', 'Mapinguari',
+    'Jersey Devil', 'Mothman', 'Beast of Bodmin', 'Dover Demon', 'Mongolian Death Worm'
+  ]
+};
+
+const ALL_CREATURES = [
+  ...CREATURES.NORMAL,
+  ...CREATURES.MYTHICAL,
+  ...CREATURES.HORROR,
+  ...CREATURES.CRYPTID,
+  ...CREATURES.DARK_LEGENDS,
+  ...CREATURES.ASIAN_MYTH,
+  ...CREATURES.SUPER_RARE
+];
+
+// 🏙️ CITIES (100 from your list)
+const CITIES = {
+  FAMOUS: [
+    'New York City', 'Paris', 'London', 'Tokyo', 'Dubai', 'Los Angeles', 'Chicago', 'Toronto', 'Berlin', 'Madrid',
+    'Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Kolkata', 'Hyderabad', 'Pune', 'Jaipur', 'Singapore', 'Bangkok',
+    'Sydney', 'Melbourne', 'Beijing', 'Shanghai', 'Seoul', 'Hong Kong', 'Kuala Lumpur', 'Jakarta', 'Istanbul', 'Moscow',
+    'Rio de Janeiro', 'São Paulo', 'Mexico City', 'Buenos Aires', 'Lima', 'Cape Town', 'Johannesburg', 'Cairo', 'Athens', 'Rome',
+    'Barcelona', 'Amsterdam', 'Vienna', 'Prague', 'Budapest', 'Warsaw', 'Zurich', 'Stockholm', 'Oslo', 'Helsinki'
+  ],
+  ANCIENT: [
+    'Machu Picchu', 'Petra', 'Pompeii', 'Angkor', 'Babylon', 'Troy', 'Teotihuacan', 'Persepolis', 'Great Zimbabwe', 'Nalanda',
+    'Pripyat', 'Varosha', 'Oradour-sur-Glane', 'Kolmanskop', 'Bodie', 'Hashima Island', 'Centralia', 'Craco', 'Humberstone', 'Pyramiden',
+    'Shani Shingnapur', 'Coober Pedy', 'Aogashima', 'Longyearbyen', 'Whittier', 'Chefchaouen', 'Venice', 'Hallstatt', 'Monowi', 'Setenil de las Bodegas',
+    'Supai', 'Ittoqqortoormiit', 'Timbuktu', 'Lhasa', 'Ushuaia', 'Reykjavik', 'Svalbard', 'Easter Island', 'Socotra', 'Ghadames',
+    'Hampi', 'Varanasi', 'Alexandria', 'Cusco', 'Fez', 'Samarkand', 'Bukhara', 'Kashgar', 'Merv', 'Taxila'
+  ]
+};
+
+const ALL_CITIES = [...CITIES.FAMOUS, ...CITIES.ANCIENT];
+
+// 🎨 COLORS (30 from your list)
+const COLORS = {
+  COMMON: [
+    'Red', 'Blue', 'Green', 'Yellow', 'Black', 'White', 'Orange', 'Purple', 'Pink', 'Brown',
+    'Grey', 'Cyan', 'Magenta', 'Lime', 'Navy Blue'
+  ],
+  RARE: [
+    'Vantablack', 'Ultramarine', 'Tyrian Purple', 'Vermilion', 'Indigo',
+    'Cerulean', 'Periwinkle', 'Chartreuse', 'Amaranth', 'Saffron',
+    'Malachite', 'Ochre', 'Aubergine', 'Teal', 'Crimson'
+  ]
+};
+
+const ALL_COLORS = [...COLORS.COMMON, ...COLORS.RARE];
+
+// =============================================================================
+// RARITY GENERATION (Your probability scheme)
+// =============================================================================
+function generateRarity() {
+  const roll = Math.random() * 100;
+  if (roll < 0.5) return 'MYTHIC';
+  if (roll < 2) return 'LEGENDARY';
+  if (roll < 5) return 'EXCLUSIVE';
+  if (roll < 15) return 'RARE';
+  if (roll < 40) return 'UNCOMMON';
+  return 'COMMON';
+}
+
+function getCreatureByRarity(rarity) {
+  switch(rarity) {
+    case 'MYTHIC':
+      return [...CREATURES.HORROR, ...CREATURES.DARK_LEGENDS, ...CREATURES.SUPER_RARE][Math.floor(Math.random() * 20)];
+    case 'LEGENDARY':
+      return [...CREATURES.MYTHICAL, ...CREATURES.CRYPTID][Math.floor(Math.random() * 20)];
+    case 'EXCLUSIVE':
+      return CREATURES.ASIAN_MYTH[Math.floor(Math.random() * CREATURES.ASIAN_MYTH.length)];
+    case 'RARE':
+      return CREATURES.CRYPTID.slice(0, 5)[Math.floor(Math.random() * 5)];
+    case 'UNCOMMON':
+      return CREATURES.NORMAL.slice(30, 50)[Math.floor(Math.random() * 20)];
+    default:
+      return CREATURES.NORMAL[Math.floor(Math.random() * 50)];
+  }
+}
+
+function getCityByRarity(rarity) {
+  switch(rarity) {
+    case 'MYTHIC':
+    case 'LEGENDARY':
+      return CITIES.ANCIENT[Math.floor(Math.random() * CITIES.ANCIENT.length)];
+    case 'EXCLUSIVE':
+      return CITIES.ANCIENT.slice(20, 40)[Math.floor(Math.random() * 20)];
+    case 'RARE':
+      return CITIES.ANCIENT.slice(0, 20)[Math.floor(Math.random() * 20)];
+    default:
+      return CITIES.FAMOUS[Math.floor(Math.random() * CITIES.FAMOUS.length)];
+  }
+}
+
+function getColorByRarity(rarity) {
+  switch(rarity) {
+    case 'MYTHIC':
+    case 'LEGENDARY':
+    case 'EXCLUSIVE':
+      return COLORS.RARE[Math.floor(Math.random() * COLORS.RARE.length)];
+    default:
+      return COLORS.COMMON[Math.floor(Math.random() * COLORS.COMMON.length)];
+  }
+}
+
+async function generateUniqueIdentity() {
+  const MAX_ATTEMPTS = 10;
+  
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const rarity = generateRarity();
+    const color = getColorByRarity(rarity);
+    const creature = getCreatureByRarity(rarity);
+    const city = getCityByRarity(rarity);
+    const number = Math.floor(Math.random() * 999) + 1;
+    
+    const identity = `${color} ${creature} of ${city} ${number}`;
+    
+    // In demo mode, just return (no DB check)
+    return { identity, rarity };
+  }
+  
+  // Fallback
+  const color = ALL_COLORS[Math.floor(Math.random() * ALL_COLORS.length)];
+  const creature = ALL_CREATURES[Math.floor(Math.random() * ALL_CREATURES.length)];
+  const city = ALL_CITIES[Math.floor(Math.random() * ALL_CITIES.length)];
+  const number = Math.floor(Math.random() * 9999) + 1;
+  
+  return { identity: `${color} ${creature} of ${city} ${number}`, rarity: 'COMMON' };
+}
 
 // =============================================================================
 // MOCK DATA FOR DEMO
@@ -68,40 +218,13 @@ const MOCK_CONFESSIONS = [
     commentCount: 45,
     views: 892,
     createdAt: new Date(Date.now() - 10800000).toISOString()
-  },
-  {
-    _id: '4',
-    authorName: 'Silver Wolf of Delphi 2',
-    author: { _id: 'user4', anonymousName: 'Silver Wolf of Delphi 2', rarity: 'UNCOMMON', level: 34, title: 'Whisperer' },
-    type: 'text',
-    content: "My parents think I'm at university studying medicine. I've been failing for two years and haven't told them. I work at a coffee shop and pretend everything is fine when they call.",
-    categories: ['family', 'work'],
-    mood: '😔',
-    reactions: { meToo: ['u1', 'u2', 'u3', 'u4'], sendingLove: ['u5', 'u6'], wow: [], sameLol: ['u7'], stayStrong: ['u8', 'u9'], respect: ['u10'] },
-    commentCount: 67,
-    views: 1234,
-    createdAt: new Date(Date.now() - 14400000).toISOString()
-  },
-  {
-    _id: '5',
-    authorName: 'Obsidian Raven of Asgard 5',
-    author: { _id: 'user5', anonymousName: 'Obsidian Raven of Asgard 5', rarity: 'EXCLUSIVE', level: 67, title: 'Shadow Voice' },
-    type: 'voice',
-    audioDuration: 78,
-    categories: ['adult', 'romantic'],
-    mood: '🔥',
-    reactions: { meToo: ['u1'], sendingLove: ['u2'], wow: ['u3', 'u4', 'u5', 'u6'], sameLol: ['u7'], stayStrong: [], respect: ['u8'] },
-    commentCount: 34,
-    views: 1567,
-    createdAt: new Date(Date.now() - 18000000).toISOString()
   }
 ];
 
 const MOCK_NOTIFICATIONS = [
   { _id: '1', type: 'reaction', message: 'Crimson Phoenix of Avalon 7 sent you Sending Love', read: false, createdAt: new Date(Date.now() - 300000).toISOString() },
   { _id: '2', type: 'comment', message: 'Azure Dragon of Shambhala 3 commented on your whisper', read: false, createdAt: new Date(Date.now() - 900000).toISOString() },
-  { _id: '3', type: 'follow', message: 'Void Walker of Eternity 1 is now following you', read: true, createdAt: new Date(Date.now() - 3600000).toISOString() },
-  { _id: '4', type: 'message', message: 'New whisper from Golden Unicorn of Kyoto 9', read: true, createdAt: new Date(Date.now() - 7200000).toISOString() }
+  { _id: '3', type: 'follow', message: 'Void Walker of Eternity 1 is now following you', read: true, createdAt: new Date(Date.now() - 3600000).toISOString() }
 ];
 
 const MOCK_CONVERSATIONS = [
@@ -267,7 +390,13 @@ const AuthProvider = ({ children }) => {
   };
 
   const signup = async (userData) => {
-    const newUser = { ...MOCK_USER, anonymousName: 'Emerald Griffin of Atlantis 4', rarity: 'LEGENDARY', gender: userData.gender };
+    const { identity, rarity } = await generateUniqueIdentity();
+    const newUser = { 
+      ...MOCK_USER, 
+      anonymousName: identity, 
+      rarity: rarity,
+      gender: userData.gender 
+    };
     localStorage.setItem('morpheus_user', JSON.stringify(newUser));
     setUser(newUser);
     return { success: true, user: newUser };
@@ -293,9 +422,37 @@ const useAuth = () => useContext(AuthContext);
 // =============================================================================
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#111111]"><div className="text-[#9D97FF]">Loading...</div></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f]"><div className="text-[#7c3aed]">Loading...</div></div>;
   if (!user) return <Navigate to="/login" replace />;
   return children;
+};
+
+// =============================================================================
+// FOLLOW BUTTON COMPONENT (NEW)
+// =============================================================================
+const FollowButton = ({ userId, initialFollowing, onFollowChange }) => {
+  const [isFollowing, setIsFollowing] = useState(initialFollowing);
+  const [loading, setLoading] = useState(false);
+
+  const handleFollow = async () => {
+    setLoading(true);
+    // Simulate API call - replace with actual API
+    setTimeout(() => {
+      setIsFollowing(!isFollowing);
+      if (onFollowChange) onFollowChange(!isFollowing);
+      setLoading(false);
+    }, 300);
+  };
+
+  return (
+    <button 
+      className={`follow-btn ${isFollowing ? 'following' : ''}`}
+      onClick={handleFollow}
+      disabled={loading}
+    >
+      {loading ? '...' : isFollowing ? '✓ Following' : '+ Follow'}
+    </button>
+  );
 };
 
 // =============================================================================
@@ -367,7 +524,7 @@ const ConfessionCard = ({ confession }) => {
       return {
         ...prev,
         [reactionType]: hasReacted
-          ? prev[reactionType].filter(id => id !== user?.id)
+          ? prev[reactionType].filter(id => id !== user.id)
           : [...(prev[reactionType] || []), user?.id]
       };
     });
@@ -465,7 +622,6 @@ const ConfessionCard = ({ confession }) => {
 // BOTTOM NAVIGATION
 // =============================================================================
 const BottomNav = () => {
-  const { user } = useAuth();
   const location = window.location.pathname;
   const unreadCount = 2;
 
@@ -518,7 +674,7 @@ const Sidebar = () => {
   return (
     <aside className="sidebar-nav">
       <div className="sidebar-logo">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#6C63FF] to-[#9D97FF] flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#7c3aed] to-[#a855f7] flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
         <div>
@@ -544,7 +700,7 @@ const Sidebar = () => {
         ))}
       </nav>
 
-      <div className="pt-4 border-t border-[#6C63FF]/10">
+      <div className="pt-4 border-t border-[#7c3aed]/10">
         <button onClick={logout} className="sidebar-item w-full text-left text-red-400 hover:text-red-300">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           <span>Logout</span>
@@ -734,10 +890,10 @@ const HomePage = () => {
 
   return (
     <div className="min-h-screen pb-20 md:pb-0">
-      <div className="sticky top-0 z-10 bg-[#111111]/95 backdrop-blur-lg border-b border-[#6C63FF]/10">
+      <div className="sticky top-0 z-10 bg-[#0a0a0f]/95 backdrop-blur-lg border-b border-[#7c3aed]/10">
         <div className="p-4">
           <div className="flex gap-2 overflow-x-auto hide-scrollbar mb-4">
-            <button onClick={() => setSelectedCategory('all')} className={`category-pill whitespace-nowrap ${selectedCategory === 'all' ? 'bg-[#6C63FF] text-white' : 'bg-[#2D2D44] text-gray-400'}`}>All</button>
+            <button onClick={() => setSelectedCategory('all')} className={`category-pill whitespace-nowrap ${selectedCategory === 'all' ? 'bg-[#7c3aed] text-white' : 'bg-[#1a1a2e] text-gray-400'}`}>All</button>
             {CATEGORIES.map(cat => (
               <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`category-pill whitespace-nowrap ${selectedCategory === cat.id ? 'ring-2 ring-white' : ''}`} style={{ background: `${cat.color}20`, color: cat.color, border: `1px solid ${cat.color}40` }}>{cat.name}</button>
             ))}
@@ -745,7 +901,7 @@ const HomePage = () => {
           
           <div className="flex gap-2">
             {['trending', 'new', 'following'].map(sort => (
-              <button key={sort} onClick={() => setSortBy(sort)} className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${sortBy === sort ? 'bg-[#6C63FF] text-white' : 'bg-[#2D2D44] text-gray-400 hover:bg-[#3D3D54]'}`}>
+              <button key={sort} onClick={() => setSortBy(sort)} className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${sortBy === sort ? 'bg-[#7c3aed] text-white' : 'bg-[#1a1a2e] text-gray-400 hover:bg-[#2a2a3e]'}`}>
                 {sort.charAt(0).toUpperCase() + sort.slice(1)}
               </button>
             ))}
@@ -822,11 +978,11 @@ const CreatePage = () => {
         <h1 className="font-display text-2xl mb-6 text-white">Share Your Whisper</h1>
 
         <div className="flex gap-4 mb-6">
-          <button onClick={() => setType('text')} className={`flex-1 py-4 rounded-xl border-2 transition-all ${type === 'text' ? 'border-[#6C63FF] bg-[#6C63FF]/10' : 'border-[#2D2D44] bg-[#2D2D44]'}`}>
+          <button onClick={() => setType('text')} className={`flex-1 py-4 rounded-xl border-2 transition-all ${type === 'text' ? 'border-[#7c3aed] bg-[#7c3aed]/10' : 'border-[#1a1a2e] bg-[#1a1a2e]'}`}>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2 text-gray-300"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
             <span className="text-sm text-gray-300">Text</span>
           </button>
-          <button onClick={() => setType('voice')} className={`flex-1 py-4 rounded-xl border-2 transition-all ${type === 'voice' ? 'border-[#6C63FF] bg-[#6C63FF]/10' : 'border-[#2D2D44] bg-[#2D2D44]'}`}>
+          <button onClick={() => setType('voice')} className={`flex-1 py-4 rounded-xl border-2 transition-all ${type === 'voice' ? 'border-[#7c3aed] bg-[#7c3aed]/10' : 'border-[#1a1a2e] bg-[#1a1a2e]'}`}>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2 text-gray-300"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
             <span className="text-sm text-gray-300">Voice</span>
           </button>
@@ -840,7 +996,7 @@ const CreatePage = () => {
         ) : (
           <div className="mb-6">
             {!audioBlob ? (
-              <div className="recorder-container bg-[#2D2D44] rounded-xl py-12">
+              <div className="recorder-container bg-[#1a1a2e] rounded-xl py-12">
                 <button onClick={isRecording ? stopRecording : startRecording} className={`record-btn ${isRecording ? 'recording' : ''}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">{isRecording ? <rect x="6" y="6" width="12" height="12"/> : <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>}</svg>
                 </button>
@@ -848,7 +1004,7 @@ const CreatePage = () => {
                 <p className="text-gray-400 text-sm">{isRecording ? 'Tap to stop' : 'Tap to record (max 100s)'}</p>
               </div>
             ) : (
-              <div className="bg-[#2D2D44] rounded-xl p-4">
+              <div className="bg-[#1a1a2e] rounded-xl p-4">
                 <div className="flex items-center gap-4">
                   <button className="play-btn w-12 h-12"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
                   <div className="flex-1"><div className="waveform h-10">{Array.from({ length: 20 }).map((_, i) => <div key={i} className="waveform-bar" style={{ height: `${Math.random() * 30 + 10}px` }}></div>)}</div></div>
@@ -862,7 +1018,7 @@ const CreatePage = () => {
               <p className="text-sm text-gray-400 mb-2">Voice Effect</p>
               <div className="flex gap-2 flex-wrap">
                 {VOICE_EFFECTS.map(effect => (
-                  <button key={effect.id} onClick={() => setVoiceEffect(effect.id)} className={`px-4 py-2 rounded-full text-sm transition-all ${voiceEffect === effect.id ? 'bg-[#6C63FF] text-white' : 'bg-[#2D2D44] text-gray-400'}`}>{effect.name}</button>
+                  <button key={effect.id} onClick={() => setVoiceEffect(effect.id)} className={`px-4 py-2 rounded-full text-sm transition-all ${voiceEffect === effect.id ? 'bg-[#7c3aed] text-white' : 'bg-[#1a1a2e] text-gray-400'}`}>{effect.name}</button>
                 ))}
               </div>
             </div>
@@ -871,7 +1027,7 @@ const CreatePage = () => {
               <p className="text-sm text-gray-400 mb-2">Ambient Sound</p>
               <div className="flex gap-2 flex-wrap">
                 {AMBIENT_SOUNDS.map(sound => (
-                  <button key={sound.id} onClick={() => setAmbientSound(sound.id)} className={`px-4 py-2 rounded-full text-sm transition-all ${ambientSound === sound.id ? 'bg-[#6C63FF] text-white' : 'bg-[#2D2D44] text-gray-400'}`}>{sound.name}</button>
+                  <button key={sound.id} onClick={() => setAmbientSound(sound.id)} className={`px-4 py-2 rounded-full text-sm transition-all ${ambientSound === sound.id ? 'bg-[#7c3aed] text-white' : 'bg-[#1a1a2e] text-gray-400'}`}>{sound.name}</button>
                 ))}
               </div>
             </div>
@@ -891,7 +1047,7 @@ const CreatePage = () => {
           <p className="text-sm text-gray-400 mb-2">Mood (optional)</p>
           <div className="flex gap-2 flex-wrap">
             {MOOD_EMOJIS.map(emoji => (
-              <button key={emoji} onClick={() => setSelectedMood(selectedMood === emoji ? '' : emoji)} className={`text-2xl p-2 rounded-lg transition-all ${selectedMood === emoji ? 'bg-[#6C63FF]/30 scale-110' : 'hover:bg-[#2D2D44]'}`}>{emoji}</button>
+              <button key={emoji} onClick={() => setSelectedMood(selectedMood === emoji ? '' : emoji)} className={`text-2xl p-2 rounded-lg transition-all ${selectedMood === emoji ? 'bg-[#7c3aed]/30 scale-110' : 'hover:bg-[#1a1a2e]'}`}>{emoji}</button>
             ))}
           </div>
         </div>
@@ -900,7 +1056,7 @@ const CreatePage = () => {
           <p className="text-sm text-gray-400 mb-2">Expires in</p>
           <div className="flex gap-2">
             {[{ id: '24h', label: '24 Hours' }, { id: '7d', label: '7 Days' }, { id: 'never', label: 'Never' }].map(opt => (
-              <button key={opt.id} onClick={() => setExpiry(opt.id)} className={`flex-1 py-3 rounded-lg text-sm transition-all ${expiry === opt.id ? 'bg-[#6C63FF] text-white' : 'bg-[#2D2D44] text-gray-400'}`}>{opt.label}</button>
+              <button key={opt.id} onClick={() => setExpiry(opt.id)} className={`flex-1 py-3 rounded-lg text-sm transition-all ${expiry === opt.id ? 'bg-[#7c3aed] text-white' : 'bg-[#1a1a2e] text-gray-400'}`}>{opt.label}</button>
             ))}
           </div>
         </div>
@@ -935,7 +1091,7 @@ const RadioPage = () => {
 
       <div className="w-full px-4 mb-8 z-10">
         <div className="flex gap-2 overflow-x-auto hide-scrollbar justify-center">
-          <button onClick={() => setSelectedCategory('all')} className={`px-4 py-2 rounded-full text-sm whitespace-nowrap ${selectedCategory === 'all' ? 'bg-[#6C63FF] text-white' : 'bg-[#2D2D44] text-gray-400'}`}>All</button>
+          <button onClick={() => setSelectedCategory('all')} className={`px-4 py-2 rounded-full text-sm whitespace-nowrap ${selectedCategory === 'all' ? 'bg-[#7c3aed] text-white' : 'bg-[#1a1a2e] text-gray-400'}`}>All</button>
           {CATEGORIES.map(cat => (
             <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all ${selectedCategory === cat.id ? 'ring-2 ring-white' : ''}`} style={{ background: selectedCategory === cat.id ? cat.color : `${cat.color}30`, color: selectedCategory === cat.id ? '#000' : cat.color }}>{cat.name}</button>
           ))}
@@ -949,12 +1105,12 @@ const RadioPage = () => {
 
         <div className="radio-info">
           <h2 className={`radio-author ${getRarityTextClass(currentConfession.author?.rarity)}`}>{currentConfession.authorName}</h2>
-          <span className="radio-category" style={{ background: `${CATEGORIES.find(c => c.id === currentConfession.categories?.[0])?.color || '#6C63FF'}30`, color: CATEGORIES.find(c => c.id === currentConfession.categories?.[0])?.color || '#6C63FF' }}>{CATEGORIES.find(c => c.id === currentConfession.categories?.[0])?.name || 'General'}</span>
+          <span className="radio-category" style={{ background: `${CATEGORIES.find(c => c.id === currentConfession.categories?.[0])?.color || '#7c3aed'}30`, color: CATEGORIES.find(c => c.id === currentConfession.categories?.[0])?.color || '#7c3aed' }}>{CATEGORIES.find(c => c.id === currentConfession.categories?.[0])?.name || 'General'}</span>
         </div>
 
         <div className="radio-controls">
           <button onClick={handleNext} className="radio-btn"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg></button>
-          <button onClick={() => setIsPlaying(!isPlaying)} className="radio-btn play"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">{isPlaying ? <><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></> : <polygon points="5 3 19 12 5 21 5 3"/>}</svg></button>
+          <button onClick={() => setIsPlaying(!isPlaying)} className="radio-btn play"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">{isPlaying ? <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/> : <polygon points="5 3 19 12 5 21 5 3"/>}</svg></button>
           <button onClick={handleNext} className="radio-btn"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg></button>
         </div>
 
@@ -979,7 +1135,7 @@ const MessagesPage = () => {
   return (
     <div className="messages-container">
       <div className="conversations-list">
-        <div className="p-4 border-b border-[#6C63FF]/10"><h2 className="font-display text-xl text-white">Messages</h2></div>
+        <div className="p-4 border-b border-[#7c3aed]/10"><h2 className="font-display text-xl text-white">Messages</h2></div>
         {MOCK_CONVERSATIONS.map((conv, idx) => (
           <div key={idx} onClick={() => setSelectedUser(conv.partner._id)} className={`conversation-item ${selectedUser === conv.partner._id ? 'active' : ''}`}>
             <AuthorOrb rarity={conv.partner.rarity} size={44} />
@@ -989,7 +1145,7 @@ const MessagesPage = () => {
             </div>
             <div className="conversation-meta">
               <p className="conversation-time">{formatRelativeTime(conv.lastMessage.createdAt)}</p>
-              {conv.unread > 0 && <span className="bg-[#6C63FF] text-white text-xs px-2 py-0.5 rounded-full">{conv.unread}</span>}
+              {conv.unread > 0 && <span className="bg-[#7c3aed] text-white text-xs px-2 py-0.5 rounded-full">{conv.unread}</span>}
             </div>
           </div>
         ))}
@@ -1037,10 +1193,10 @@ const NotificationsPage = () => {
 
   return (
     <div className="min-h-screen pb-20 md:pb-0">
-      <div className="sticky top-0 z-10 bg-[#111111]/95 backdrop-blur-lg border-b border-[#6C63FF]/10">
+      <div className="sticky top-0 z-10 bg-[#0a0a0f]/95 backdrop-blur-lg border-b border-[#7c3aed]/10">
         <div className="p-4 flex items-center justify-between">
           <h1 className="font-display text-xl text-white">Notifications</h1>
-          {MOCK_NOTIFICATIONS.some(n => !n.read) && <button className="text-sm text-[#6C63FF] hover:text-[#9D97FF]">Mark all read</button>}
+          {MOCK_NOTIFICATIONS.some(n => !n.read) && <button className="text-sm text-[#7c3aed] hover:text-[#a855f7]">Mark all read</button>}
         </div>
       </div>
 
@@ -1049,7 +1205,7 @@ const NotificationsPage = () => {
           {MOCK_NOTIFICATIONS.map((notification, idx) => (
             <div key={idx} className={`notification-item ${!notification.read ? 'unread' : ''}`}>
               <div className="notification-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#6C63FF]">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#7c3aed]">
                   {getNotificationIcon(notification.type) === 'heart' && <><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></>}
                   {getNotificationIcon(notification.type) === 'message-square' && <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></>}
                   {getNotificationIcon(notification.type) === 'message-circle' && <><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></>}
@@ -1070,7 +1226,7 @@ const NotificationsPage = () => {
 };
 
 // =============================================================================
-// PROFILE PAGE
+// PROFILE PAGE (WITH FOLLOW BUTTON)
 // =============================================================================
 const ProfilePage = () => {
   const { id } = useParams();
@@ -1078,6 +1234,11 @@ const ProfilePage = () => {
   const profile = id === 'me' || id === currentUser?.id ? currentUser : MOCK_CONFESSIONS[0].author;
   const isOwnProfile = id === 'me' || id === currentUser?.id;
   const xpPercent = ((profile.xp % 100) / 100) * 100;
+
+  const handleFollowChange = (newStatus) => {
+    console.log('Follow status changed:', newStatus);
+    // Update UI or refetch profile data here
+  };
 
   return (
     <div className="min-h-screen pb-20 md:pb-0">
@@ -1096,10 +1257,17 @@ const ProfilePage = () => {
           <div className="stat-item"><p className="stat-value">{profile.following}</p><p className="stat-label">Following</p></div>
         </div>
 
+        {/* FOLLOW BUTTON ADDED HERE */}
         {!isOwnProfile && (
           <div className="profile-actions">
-            <button className="profile-btn primary">Follow</button>
-            <Link to={`/messages?to=${profile._id}`} className="profile-btn secondary">Message</Link>
+            <FollowButton 
+              userId={profile._id}
+              initialFollowing={profile.isFollowing}
+              onFollowChange={handleFollowChange}
+            />
+            <Link to={`/messages?to=${profile._id}`} className="profile-btn secondary">
+              Message 💬
+            </Link>
           </div>
         )}
 
@@ -1113,7 +1281,7 @@ const ProfilePage = () => {
         <div className="badges-section">
           <p className="badges-title">Badges</p>
           <div className="badges-list">
-            {profile.badges.map((badge, idx) => <span key={idx} className="badge" style={{ background: 'rgba(108, 99, 255, 0.2)', color: '#9D97FF' }}>{badge}</span>)}
+            {profile.badges.map((badge, idx) => <span key={idx} className="badge" style={{ background: 'rgba(124, 58, 237, 0.2)', color: '#a855f7' }}>{badge}</span>)}
           </div>
         </div>
       )}
@@ -1132,7 +1300,7 @@ const ProfilePage = () => {
 // MAIN APP LAYOUT
 // =============================================================================
 const AppLayout = ({ children }) => (
-  <div className="min-h-screen bg-[#111111]">
+  <div className="min-h-screen bg-[#0a0a0f]">
     <Sidebar />
     <main className="main-content md:ml-60">
       <div className="page-container">{children}</div>
@@ -1145,22 +1313,18 @@ const AppLayout = ({ children }) => (
 // MAIN APP COMPONENT
 // =============================================================================
 const App = () => (
-  <BrowserRouter>
-    <AuthProvider>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/reveal" element={<IdentityRevealPage />} />
-        <Route path="/" element={<ProtectedRoute><AppLayout><HomePage /></AppLayout></ProtectedRoute>} />
-        <Route path="/create" element={<ProtectedRoute><AppLayout><CreatePage /></AppLayout></ProtectedRoute>} />
-        <Route path="/radio" element={<ProtectedRoute><AppLayout><RadioPage /></AppLayout></ProtectedRoute>} />
-        <Route path="/messages" element={<ProtectedRoute><AppLayout><MessagesPage /></AppLayout></ProtectedRoute>} />
-        <Route path="/notifications" element={<ProtectedRoute><AppLayout><NotificationsPage /></AppLayout></ProtectedRoute>} />
-        <Route path="/profile/:id" element={<ProtectedRoute><AppLayout><ProfilePage /></AppLayout></ProtectedRoute>} />
-      </Routes>
-    </AuthProvider>
-  </BrowserRouter>
+  <AuthProvider>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/reveal" element={<IdentityRevealPage />} />
+      <Route path="/" element={<ProtectedRoute><AppLayout><HomePage /></AppLayout></ProtectedRoute>} />
+      <Route path="/create" element={<ProtectedRoute><AppLayout><CreatePage /></AppLayout></ProtectedRoute>} />
+      <Route path="/radio" element={<ProtectedRoute><AppLayout><RadioPage /></AppLayout></ProtectedRoute>} />
+      <Route path="/messages" element={<ProtectedRoute><AppLayout><MessagesPage /></AppLayout></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><AppLayout><NotificationsPage /></AppLayout></ProtectedRoute>} />
+      <Route path="/profile/:id" element={<ProtectedRoute><AppLayout><ProfilePage /></AppLayout></ProtectedRoute>} />
+    </Routes>
+  </AuthProvider>
 );
-
-
 
 export default App;
