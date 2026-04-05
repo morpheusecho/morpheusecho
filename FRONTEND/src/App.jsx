@@ -2229,7 +2229,7 @@ const ProfilePage = () => {
       return newArr;
     });
     setProfile(prev => {
-      const newProfile = { ...prev, totalConfessions: Math.max(0, prev.totalConfessions - 1) };
+      const newProfile = { ...prev, totalConfessions: Math.max(0, (prev.totalConfessions || 0) - 1) };
       if (isOwnProfile) updateCache('profile', newProfile);
       return newProfile;
     });
