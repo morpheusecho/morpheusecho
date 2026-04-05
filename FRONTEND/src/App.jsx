@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useContext, createContext, useCallb
 import { Routes, Route, Link, useNavigate, useParams, Navigate, useLocation } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { motion, AnimatePresence } from 'framer-motion';
+import transparentLogo from '../../MEDIA/transparent-logo.png';
 
 // =============================================================================
 // MOCK DATA FOR DEMO
@@ -280,10 +281,53 @@ const AuthProvider = ({ children }) => {
     navigate('/login');
   };
 
+  const updateUser = (updates) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const newUser = { ...prev, ...updates };
+      localStorage.setItem('morpheus_user', JSON.stringify(newUser));
+      return newUser;
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, signup, logout, loading, updateUser }}>
       {children}
     </AuthContext.Provider>
+  );
+};
+
+// =============================================================================
+// PEACEFUL ANIMATED BACKGROUND
+// =============================================================================
+const PeacefulBackground = () => {
+  const particles = useMemo(() => {
+    const colors = ['#fecdd3', '#bfdbfe', '#bbf7d0', '#fef08a', '#ffedd5']; // Pink, Blue, Green, Yellow, Peach
+    return Array.from({ length: 18 }).map((_, i) => ({
+      id: i,
+      color: colors[i % colors.length],
+      size: Math.random() * 250 + 150,
+      left: Math.random() * 100,
+      top: Math.random() * 100,
+      xMove: Math.random() * 80 - 40,
+      yMove: Math.random() * 80 - 40,
+      duration: Math.random() * 20 + 25
+    }));
+  }, []);
+
+  return (
+    <div className="peaceful-bg">
+      {particles.map(p => (
+        <motion.div
+          key={p.id}
+          className="absolute rounded-full mix-blend-multiply filter blur-[60px] opacity-60"
+          style={{ backgroundColor: p.color, width: `${p.size}px`, height: `${p.size}px`, left: `${p.left}vw`, top: `${p.top}vh` }}
+          animate={{ x: [0, p.xMove, 0], y: [0, p.yMove, 0], scale: [1, 1.1, 1] }}
+          transition={{ duration: p.duration, repeat: Infinity, ease: "easeInOut" }}
+        />
+      ))}
+      <div className="absolute inset-0 bg-white/30 backdrop-blur-[50px] z-0"></div>
+    </div>
   );
 };
 
@@ -298,9 +342,9 @@ const SocketProvider = ({ children }) => {
   const { user } = useAuth();
   const [socket, setSocket] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const currentUserId = user?.id || user?._id;
 
   useEffect(() => {
-    const currentUserId = user?.id || user?._id;
     if (user && currentUserId) {
       // Fetch initial unread count on load
       const token = localStorage.getItem('morpheus_token');
@@ -330,7 +374,7 @@ const SocketProvider = ({ children }) => {
 
       return () => newSocket.disconnect();
     }
-  }, [user]);
+  }, [currentUserId]);
 
   return <SocketContext.Provider value={{ socket, unreadCount, setUnreadCount }}>{children}</SocketContext.Provider>;
 };
@@ -354,6 +398,10 @@ const FollowButton = ({ userId, initialFollowing, onFollowChange }) => {
   const [isFollowing, setIsFollowing] = useState(initialFollowing);
   const [loading, setLoading] = useState(false);
   const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    setIsFollowing(initialFollowing);
+  }, [initialFollowing]);
 
   useEffect(() => {
     return () => {
@@ -411,16 +459,20 @@ const RarityBadge = ({ rarity, size = 'md' }) => {
 // =============================================================================
 // AUTHOR ORB
 // =============================================================================
-const AuthorOrb = ({ rarity, size = 40 }) => (
-  <div className={`${getRarityOrbClass(rarity)} rounded-full flex items-center justify-center`} style={{ width: size, height: size }}>
-    <svg xmlns="http://www.w3.org/2000/svg" width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+const AuthorOrb = ({ rarity, size = 40, avatarUrl }) => (
+  <div className={`${getRarityOrbClass(rarity)} rounded-full flex items-center justify-center overflow-hidden`} style={{ width: size, height: size, flexShrink: 0 }}>
+    {avatarUrl ? (
+      <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+    ) : (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    )}
   </div>
 );
 
 // =============================================================================
 // CONFESSION CARD
 // =============================================================================
-const ConfessionCard = ({ confession }) => {
+const ConfessionCard = ({ confession, onDelete }) => {
   const { user } = useAuth();
   const [isRevealed, setIsRevealed] = useState(false);
   const [holdProgress, setHoldProgress] = useState(0);
@@ -520,7 +572,34 @@ const ConfessionCard = ({ confession }) => {
       if (!response.ok) throw new Error('Failed to record reaction');
     } catch (err) {
       console.error('Reaction API error:', err);
-      // Optional: Revert the optimistic update here if the request fails
+      // Revert the optimistic update if network fails
+      setLocalReactions(prev => {
+        const hasReacted = prev[reactionType]?.includes(currentUserId);
+        return {
+          ...prev,
+          [reactionType]: hasReacted
+            ? prev[reactionType].filter(id => id !== currentUserId)
+            : [...(prev[reactionType] || []), currentUserId]
+        };
+      });
+    }
+  };
+
+  const handleDelete = async (e) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to permanently delete this whisper?')) return;
+    
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}/api/confessions/${confession._id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok && onDelete) {
+        onDelete(confession._id);
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
     }
   };
 
@@ -572,7 +651,7 @@ const ConfessionCard = ({ confession }) => {
       _id: Date.now().toString(),
       content: newComment,
       authorName: user?.anonymousName || 'You',
-      author: { _id: user?.id || user?._id, rarity: user?.rarity },
+      author: { _id: user?.id || user?._id, rarity: user?.rarity, avatarUrl: user?.avatarUrl },
       createdAt: new Date().toISOString()
     };
 
@@ -592,6 +671,7 @@ const ConfessionCard = ({ confession }) => {
     }
   };
 
+  const safeDuration = confession.audioDuration || 0;
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -601,7 +681,7 @@ const ConfessionCard = ({ confession }) => {
       className={`confession-card ${getRarityFrameClass(confession.author?.rarity)}`}
     >
       <div className="card-header">
-        <AuthorOrb rarity={confession.author?.rarity} size={40} />
+        <AuthorOrb rarity={confession.author?.rarity} avatarUrl={confession.author?.avatarUrl} size={40} />
         <div className="author-info">
           <Link to={`/profile/${confession.author?._id}`} className={`author-name ${getRarityTextClass(confession.author?.rarity)}`}>
             {confession.authorName}
@@ -637,7 +717,7 @@ const ConfessionCard = ({ confession }) => {
       >
         <div className={`blur-content ${isRevealed ? 'revealed' : ''}`}>
           {confession.type === 'text' ? (
-            <p className="card-content">{confession.content}</p>
+            <p className="card-content whitespace-pre-wrap break-words">{confession.content}</p>
           ) : (
             <div className="audio-player">
               <button className="play-btn" onClick={toggleAudio}>
@@ -648,7 +728,7 @@ const ConfessionCard = ({ confession }) => {
                   <div key={i} className="waveform-bar" style={{ height: `${height}px` }}></div>
                 ))}
               </div>
-              <span className="audio-duration">{Math.floor(confession.audioDuration / 60)}:{String(Math.floor(confession.audioDuration % 60)).padStart(2, '0')}</span>
+              <span className="audio-duration">{Math.floor(safeDuration / 60)}:{String(Math.floor(safeDuration % 60)).padStart(2, '0')}</span>
             </div>
           )}
         </div>
@@ -686,6 +766,11 @@ const ConfessionCard = ({ confession }) => {
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             {localCommentCount > 0 && <span>{localCommentCount}</span>}
           </button>
+          {user && confession.author?._id === (user?.id || user?._id) && (
+            <button className="action-btn text-red-400 hover:text-red-500" title="Delete" onClick={handleDelete}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          )}
           {user && confession.author?._id !== (user?.id || user?._id) && (
             <Link to={`/messages?to=${confession.author?._id}`} className="action-btn" title="Anonymous Message" onClick={(e) => e.stopPropagation()}>
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
@@ -724,7 +809,7 @@ const ConfessionCard = ({ confession }) => {
               ) : comments.length > 0 ? (
                 comments.map(comment => (
                   <div key={comment._id} className="flex gap-3">
-                    <AuthorOrb rarity={comment.author?.rarity} size={28} />
+                    <AuthorOrb rarity={comment.author?.rarity} avatarUrl={comment.author?.avatarUrl} size={28} />
                     <div className="flex-1 bg-[var(--bg-hover)] rounded-2xl rounded-tl-none p-3 text-sm">
                       <div className="flex justify-between items-baseline mb-1">
                         <span className={`font-semibold text-xs ${getRarityTextClass(comment.author?.rarity)}`}>{comment.authorName}</span>
@@ -800,9 +885,7 @@ const Sidebar = () => {
   return (
     <aside className="sidebar-nav">
       <div className="sidebar-logo">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--accent-primary)] to-[var(--accent-secondary)] flex items-center justify-center shadow-md">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        </div>
+        <img src={transparentLogo} alt="Morpheus Echo Logo" className="w-10 h-10 object-contain drop-shadow-md" />
         <div>
           <h1 className="font-display text-lg font-bold text-[var(--text-primary)]">Morpheus</h1>
           <p className="text-xs text-[var(--text-muted)]">Echo</p>
@@ -884,9 +967,7 @@ const LoginPage = () => {
         className="auth-card"
       >
         <div className="auth-logo">
-          <div className="auth-logo-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </div>
+          <img src={transparentLogo} alt="Morpheus Echo Logo" className="w-20 h-20 mx-auto object-contain drop-shadow-xl mb-2" />
         <h1 className="font-display text-2xl font-bold text-[var(--text-primary)]">Morpheus Echo</h1>
         <p className="text-[var(--text-muted)] text-sm italic">"Whisper your truth. Echo your soul."</p>
         </div>
@@ -1032,7 +1113,7 @@ const IdentityRevealPage = () => {
           <div>
             <h2 className="reveal-title mb-8">✨ YOUR IDENTITY IS ✨</h2>
             <div className={`identity-card ${getRarityFrameClass(user.rarity)}`}>
-              <AuthorOrb rarity={user.rarity} size={80} />
+              <AuthorOrb rarity={user.rarity} avatarUrl={user.avatarUrl} size={80} />
               <h3 className={`identity-name ${getRarityTextClass(user.rarity)}`}>{user.anonymousName}</h3>
               <p className="identity-rarity" style={{ color: getRarityColor(user.rarity) }}>{user.rarity}</p>
               <p className="identity-quote">"Your secret name. Your truth.<br />Guard it well."</p>
@@ -1063,6 +1144,7 @@ const HomePage = () => {
   }, [selectedCategory, sortBy]);
 
   useEffect(() => {
+    let isActive = true;
     const fetchFeed = async () => {
       if (page === 1) setLoading(true);
       else setIsLoadingMore(true);
@@ -1075,14 +1157,21 @@ const HomePage = () => {
         if (!response.ok) throw new Error('Failed to fetch feed');
         const data = await response.json();
         
+        if (!isActive) return;
+        
         if (page === 1) {
           setConfessions(data.confessions);
         } else {
-          setConfessions(prev => [...prev, ...data.confessions]);
+          setConfessions(prev => {
+            const uniqueNew = data.confessions.filter(newConf => !prev.some(p => p._id === newConf._id));
+            return [...prev, ...uniqueNew];
+          });
         }
         setHasMore(data.pagination.page < data.pagination.pages);
       } catch (err) {
         console.error('Feed error:', err);
+        if (!isActive) return;
+        
         if (page === 1) {
           setConfessions(MOCK_CONFESSIONS);
           setHasMore(false);
@@ -1093,7 +1182,12 @@ const HomePage = () => {
       }
     };
     fetchFeed();
+    return () => { isActive = false; };
   }, [selectedCategory, sortBy, page]);
+
+  const handleDeleteConfession = (id) => {
+    setConfessions(prev => prev.filter(c => c._id !== id));
+  };
 
   return (
     <div className="min-h-screen pb-20 md:pb-0">
@@ -1123,7 +1217,7 @@ const HomePage = () => {
           ) : confessions.length > 0 ? (
             <>
               {confessions.map(confession => (
-                <ConfessionCard key={confession._id} confession={confession} />
+                <ConfessionCard key={confession._id} confession={confession} onDelete={handleDeleteConfession} />
               ))}
               {hasMore && (
                 <button 
@@ -1164,10 +1258,13 @@ const CreatePage = () => {
   const submitTimeoutRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const isMounted = useRef(true);
   const waveformHeights = useMemo(() => Array.from({ length: 20 }).map(() => Math.random() * 30 + 10), [audioBlob]);
 
   useEffect(() => {
+    isMounted.current = true;
     return () => {
+      isMounted.current = false;
       if (timerRef.current) clearInterval(timerRef.current);
       if (submitTimeoutRef.current) clearTimeout(submitTimeoutRef.current);
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
@@ -1177,8 +1274,18 @@ const CreatePage = () => {
   }, []);
 
   const startRecording = async () => {
+    // Prevent background app audio from bleeding into the new recording
+    window.dispatchEvent(new CustomEvent('stop_all_audio'));
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Security guard: If user navigated away during the permission prompt, kill the mic instantly
+      if (!isMounted.current) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -1188,7 +1295,8 @@ const CreatePage = () => {
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
         setAudioBlob(blob);
         stream.getTracks().forEach(track => track.stop());
       };
@@ -1308,7 +1416,7 @@ const CreatePage = () => {
 
         {type === 'text' ? (
           <div className="mb-6">
-            <textarea className="input-field textarea-field" placeholder="Your secret is safe here..." value={content} onChange={(e) => setContent(e.target.value)} maxLength={2000} />
+            <textarea className="input-field textarea-field" placeholder="Your secret is safe here..." value={content} onChange={(e) => setContent(e.target.value)} maxLength={2000} rows={6} />
           <p className={`text-right text-sm mt-2 ${wordCount > 200 ? 'text-red-500' : 'text-[var(--text-muted)]'}`}>{wordCount} / 200 words</p>
           </div>
         ) : (
@@ -1413,14 +1521,16 @@ const RadioPage = () => {
         setQueueCount(data.queueLength);
       } else {
         // Fallback to mock data if the database is empty so the UI doesn't break
-        const mockQueue = MOCK_CONFESSIONS.filter(c => selectedCategory === 'all' || c.categories.includes(selectedCategory));
+        let mockQueue = MOCK_CONFESSIONS.filter(c => selectedCategory === 'all' || c.categories.includes(selectedCategory));
+        if (mockQueue.length === 0) mockQueue = MOCK_CONFESSIONS; // Prevent infinite crash loop on empty categories
         setQueue(mockQueue);
         setCurrentConfession(mockQueue[0] || MOCK_CONFESSIONS[1]);
         setQueueCount(mockQueue.length);
       }
     } catch (err) {
       console.error('Radio fetch error:', err);
-      const mockQueue = MOCK_CONFESSIONS.filter(c => selectedCategory === 'all' || c.categories.includes(selectedCategory));
+      let mockQueue = MOCK_CONFESSIONS.filter(c => selectedCategory === 'all' || c.categories.includes(selectedCategory));
+      if (mockQueue.length === 0) mockQueue = MOCK_CONFESSIONS;
       setQueue(mockQueue);
       setCurrentConfession(mockQueue[0] || MOCK_CONFESSIONS[1]);
       setQueueCount(mockQueue.length);
@@ -1441,6 +1551,12 @@ const RadioPage = () => {
 
   useEffect(() => {
     fetchRadioQueue();
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
   }, [fetchRadioQueue]);
 
   useEffect(() => {
@@ -1462,8 +1578,12 @@ const RadioPage = () => {
         audioRef.current.pause();
       }
       audioRef.current = new Audio(currentConfession.audioUrl);
-      audioRef.current.onended = handleNext;
     }
+
+        // Always update to the freshest callback to prevent stale array closures
+        if (audioRef.current) {
+          audioRef.current.onended = handleNext;
+        }
 
     if (isPlaying) {
       window.dispatchEvent(new CustomEvent('stop_all_audio', { detail: { id: 'radio' } }));
@@ -1492,8 +1612,12 @@ const RadioPage = () => {
       </div>
 
       <div className="radio-player">
-        <div className={`radio-orb ${getRarityOrbClass(currentConfession?.author?.rarity)}`}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <div className={`radio-orb ${getRarityOrbClass(currentConfession?.author?.rarity)} overflow-hidden`}>
+          {currentConfession?.author?.avatarUrl ? (
+            <img src={currentConfession.author.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          )}
         </div>
 
         <div className="radio-info">
@@ -1528,6 +1652,7 @@ const MessagesPage = () => {
   const { user } = useAuth();
   const { socket, setUnreadCount } = useSocket() || {};
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Handle deep link to specific user
   useEffect(() => {
@@ -1535,6 +1660,8 @@ const MessagesPage = () => {
     const toUser = searchParams.get('to');
     if (toUser) {
       setSelectedUser(toUser);
+    } else {
+      setSelectedUser(null);
     }
   }, [location.search]);
 
@@ -1557,6 +1684,9 @@ const MessagesPage = () => {
   useEffect(() => {
     if (!selectedUser) return;
     
+    let isActive = true;
+    setActiveUserProfile(null);
+    
     // Set active user profile for header
     const existingConv = conversations.find(c => c.partner._id === selectedUser);
     if (existingConv) {
@@ -1565,7 +1695,11 @@ const MessagesPage = () => {
       const token = localStorage.getItem('morpheus_token');
       fetch(`${SOCKET_URL}/api/users/${selectedUser}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json())
-        .then(data => setActiveUserProfile({ ...data.user, _id: data.user.id || data.user._id }))
+        .then(data => {
+          if (data && data.user) {
+            setActiveUserProfile({ ...data.user, _id: data.user.id || data.user._id });
+          }
+        })
         .catch(err => console.error(err));
     }
 
@@ -1577,6 +1711,9 @@ const MessagesPage = () => {
         });
         if (res.ok) {
           const data = await res.json();
+          
+          if (!isActive) return;
+          
           if (Array.isArray(data)) setLocalMessages(data);
           
           // Clear the unread indicator for this conversation
@@ -1601,6 +1738,7 @@ const MessagesPage = () => {
       }
     };
     fetchMessages();
+    return () => { isActive = false; };
   }, [selectedUser]);
 
   useEffect(() => {
@@ -1612,7 +1750,7 @@ const MessagesPage = () => {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [selectedUser, localMessages, isPartnerTyping]);
+  }, [selectedUser, localMessages]);
 
   // Listen for incoming real-time messages
   useEffect(() => {
@@ -1621,13 +1759,16 @@ const MessagesPage = () => {
     const handleNewMessage = (data) => {
       // Only append to the active chat window if we are currently talking to the sender
       if (data.fromId === selectedUser) {
-        setLocalMessages(prev => [...prev, {
-          _id: data.messageId,
-          sender: { _id: data.fromId, anonymousName: data.from, rarity: data.rarity },
-          content: data.content,
-          createdAt: data.timestamp,
-          read: false
-        }]);
+        setLocalMessages(prev => {
+          if (prev.some(m => m._id === data.messageId)) return prev; // Prevent duplicate Socket.IO appends
+          return [...prev, {
+            _id: data.messageId,
+            sender: { _id: data.fromId, anonymousName: data.from, rarity: data.rarity, avatarUrl: data.avatarUrl },
+            content: data.content,
+            createdAt: data.timestamp,
+            read: false
+          }];
+        });
 
         // Prevent global badge from permanently staying up since we are actively reading this
         if (setUnreadCount) setUnreadCount(prev => Math.max(0, prev - 1));
@@ -1645,7 +1786,7 @@ const MessagesPage = () => {
         let updatedList;
         if (!exists) {
           updatedList = [{
-            partner: { _id: data.fromId, anonymousName: data.from, rarity: data.rarity || 'COMMON' },
+            partner: { _id: data.fromId, anonymousName: data.from, rarity: data.rarity || 'COMMON', avatarUrl: data.avatarUrl },
             lastMessage: { content: data.content, createdAt: data.timestamp },
             unread: data.fromId === selectedUser ? 0 : 1
           }, ...prev];
@@ -1710,7 +1851,7 @@ const MessagesPage = () => {
     // Optimistic UI update
     setLocalMessages(prev => [...prev, {
       _id: Date.now().toString(),
-      sender: { _id: currentUserId, anonymousName: user?.anonymousName, rarity: user?.rarity },
+      sender: { _id: currentUserId, anonymousName: user?.anonymousName, rarity: user?.rarity, avatarUrl: user?.avatarUrl },
       content: msgContent,
       createdAt: timestamp,
       read: false
@@ -1754,7 +1895,7 @@ const MessagesPage = () => {
         <div className="p-4 border-b border-[rgba(255,255,255,0.6)]"><h2 className="font-display text-xl text-[var(--text-primary)]">Messages</h2></div>
         {conversations.length > 0 ? conversations.map((conv) => (
           <div key={conv.partner._id} onClick={() => setSelectedUser(conv.partner._id)} className={`conversation-item ${selectedUser === conv.partner._id ? 'active' : ''}`}>
-            <AuthorOrb rarity={conv.partner.rarity} size={44} />
+            <AuthorOrb rarity={conv.partner.rarity} avatarUrl={conv.partner.avatarUrl} size={44} />
             <div className="conversation-preview">
               <p className="conversation-name text-[var(--text-primary)]">{conv.partner.anonymousName}</p>
               <p className="conversation-text">{conv.lastMessage.content}</p>
@@ -1772,10 +1913,10 @@ const MessagesPage = () => {
       {selectedUser ? (
         <div className={`chat-container ${!selectedUser ? 'hide-on-mobile' : ''}`}>
           <div className="chat-header">
-            <button className="back-btn mobile-only" onClick={() => setSelectedUser(null)}>
+            <button className="back-btn mobile-only" onClick={() => { setSelectedUser(null); navigate('/messages'); }}>
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
-            <AuthorOrb rarity={activeUserProfile?.rarity} size={36} />
+            <AuthorOrb rarity={activeUserProfile?.rarity} avatarUrl={activeUserProfile?.avatarUrl} size={36} />
           <span className="font-semibold text-[var(--text-primary)]">{activeUserProfile?.anonymousName || 'User'}</span>
           </div>
 
@@ -1825,6 +1966,7 @@ const NotificationsPage = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const { setUnreadCount } = useSocket() || {};
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -1865,6 +2007,32 @@ const NotificationsPage = () => {
     }
   };
 
+  const handleNotificationClick = async (notification) => {
+    if (!notification.read) {
+      try {
+        const token = localStorage.getItem('morpheus_token');
+        const res = await fetch(`${SOCKET_URL}/api/notifications/${notification._id}/read`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          setNotifications(prev => prev.map(n => n._id === notification._id ? { ...n, read: true } : n));
+          if (setUnreadCount) setUnreadCount(curr => Math.max(0, curr - 1));
+        }
+      } catch (err) {
+        console.error('Failed to mark read:', err);
+      }
+    }
+
+    if (notification.type === 'message' && notification.data?.from) {
+      navigate(`/messages?to=${notification.data.from}`);
+    } else if (notification.type === 'follow' && notification.data?.followerId) {
+      navigate(`/profile/${notification.data.followerId}`);
+    } else if (['reaction', 'comment'].includes(notification.type)) {
+      navigate(`/profile/me`);
+    }
+  };
+
   const getNotificationIcon = (type) => ({ reaction: 'heart', comment: 'message-square', message: 'message-circle', follow: 'user-plus', chain: 'link', streak: 'flame', level: 'trending-up' }[type] || 'bell');
 
   return (
@@ -1886,6 +2054,7 @@ const NotificationsPage = () => {
               key={notification._id}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
+              onClick={() => handleNotificationClick(notification)}
               className={`notification-item ${!notification.read ? 'unread' : ''}`}
             >
               <div className="notification-icon">
@@ -1925,38 +2094,114 @@ const ProfilePage = () => {
   const [profile, setProfile] = useState(null);
   const [userConfessions, setUserConfessions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const { updateUser } = useAuth();
+
+  useEffect(() => {
+    setPage(1);
+  }, [targetId]);
 
   useEffect(() => {
     if (!targetId) return;
     
+    let isActive = true;
+    if (page === 1) {
+      setProfile(null);
+      setUserConfessions([]);
+    }
+    
     const fetchProfileData = async () => {
-      setLoading(true);
+      if (page === 1) setLoading(true);
+      else setIsLoadingMore(true);
+      
       try {
         const token = localStorage.getItem('morpheus_token');
         const headers = { 'Authorization': `Bearer ${token}` };
         
-        const [profileRes, confessionsRes] = await Promise.all([
-          fetch(`${SOCKET_URL}/api/users/${targetId}`, { headers }),
-          fetch(`${SOCKET_URL}/api/users/${targetId}/confessions?limit=10`, { headers })
-        ]);
-        
-        if (profileRes.ok) {
-          const data = await profileRes.json();
-          setProfile(data.user);
-        }
-        if (confessionsRes.ok) {
-          const data = await confessionsRes.json();
-          setUserConfessions(data.confessions);
+        if (page === 1) {
+          const [profileRes, confessionsRes] = await Promise.all([
+            fetch(`${SOCKET_URL}/api/users/${targetId}`, { headers }),
+            fetch(`${SOCKET_URL}/api/users/${targetId}/confessions?page=1&limit=10`, { headers })
+          ]);
+          
+          if (!isActive) return;
+          
+          if (profileRes.ok) {
+            const data = await profileRes.json();
+            setProfile(data.user);
+          }
+          if (confessionsRes.ok) {
+            const data = await confessionsRes.json();
+            setUserConfessions(data.confessions);
+            setHasMore(data.pagination?.page < data.pagination?.pages);
+          }
+        } else {
+          const confessionsRes = await fetch(`${SOCKET_URL}/api/users/${targetId}/confessions?page=${page}&limit=10`, { headers });
+          if (!isActive) return;
+          if (confessionsRes.ok) {
+            const data = await confessionsRes.json();
+            setUserConfessions(prev => {
+              const uniqueNew = data.confessions.filter(newConf => !prev.some(p => p._id === newConf._id));
+              return [...prev, ...uniqueNew];
+            });
+            setHasMore(data.pagination?.page < data.pagination?.pages);
+          }
         }
       } catch (err) {
         console.error('Failed to fetch profile:', err);
       } finally {
         setLoading(false);
+        setIsLoadingMore(false);
       }
     };
     
     fetchProfileData();
-  }, [targetId]);
+    return () => { isActive = false; };
+  }, [targetId, page]);
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+          try {
+            const token = localStorage.getItem('morpheus_token');
+            const res = await fetch(`${SOCKET_URL}/api/users/avatar`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ imageData: reader.result })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              setProfile(prev => ({ ...prev, avatarUrl: data.avatarUrl }));
+              updateUser({ avatarUrl: data.avatarUrl });
+            }
+          } catch (err) {
+            console.error('Upload request failed:', err);
+          } finally {
+            setUploadingAvatar(false);
+        }
+      };
+        reader.onerror = () => {
+          console.error('File reading failed');
+          setUploadingAvatar(false);
+        };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Avatar upload failed:', err);
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleDeleteConfession = (id) => {
+    setUserConfessions(prev => prev.filter(c => c._id !== id));
+    setProfile(prev => ({ ...prev, totalConfessions: Math.max(0, prev.totalConfessions - 1) }));
+  };
 
   const xpPercent = profile ? ((profile.xp % 100) / 100) * 100 : 0;
 
@@ -1988,8 +2233,24 @@ const ProfilePage = () => {
   return (
     <div className="min-h-screen pb-20 md:pb-0">
       <div className="profile-header">
-        <div className={`profile-orb ${getRarityOrbClass(profile.rarity)}`}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <div className="relative mx-auto mb-4" style={{ width: '100px', height: '100px' }}>
+          <div className={`w-full h-full rounded-full flex items-center justify-center overflow-hidden ${getRarityOrbClass(profile.rarity)}`}>
+            {profile.avatarUrl ? (
+              <img src={profile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            )}
+          </div>
+          {isOwnProfile && (
+            <label className="absolute bottom-0 right-0 bg-[var(--accent-primary)] text-white p-2 rounded-full cursor-pointer shadow-lg hover:scale-105 transition-all z-10" title="Upload Custom Photo">
+              <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
+              {uploadingAvatar ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              )}
+            </label>
+          )}
         </div>
         <h1 className={`profile-name ${getRarityTextClass(profile.rarity)}`}>{profile.anonymousName}</h1>
         <p className="profile-title">{profile.title}</p>
@@ -2005,11 +2266,11 @@ const ProfilePage = () => {
         {!isOwnProfile && (
           <div className="profile-actions">
             <FollowButton 
-              userId={profile._id}
+              userId={profile.id || profile._id}
               initialFollowing={profile.isFollowing || false}
               onFollowChange={handleFollowChange}
             />
-            <Link to={`/messages?to=${profile._id}`} className="profile-btn secondary">
+            <Link to={`/messages?to=${profile.id || profile._id}`} className="profile-btn secondary">
               Message 💬
             </Link>
           </div>
@@ -2034,7 +2295,18 @@ const ProfilePage = () => {
         <h3 className="text-lg font-semibold mb-4 text-[var(--text-primary)]">Whispers</h3>
         <div className="space-y-4">
           {userConfessions.length > 0 ? (
-            userConfessions.map(confession => <ConfessionCard key={confession._id} confession={confession} />)
+            <>
+              {userConfessions.map(confession => <ConfessionCard key={confession._id} confession={confession} onDelete={handleDeleteConfession} />)}
+              {hasMore && (
+                <button 
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={isLoadingMore}
+                  className="w-full py-3 mt-4 mb-8 bg-[var(--bg-card)] border border-[rgba(255,255,255,0.6)] text-[var(--accent-primary)] font-semibold rounded-xl hover:bg-[var(--accent-light)] transition-all backdrop-blur-md"
+                >
+                  {isLoadingMore ? 'Listening deeper...' : 'Load More Whispers'}
+                </button>
+              )}
+            </>
           ) : (
             <div className="text-center text-[var(--text-muted)] py-8">No whispers shared yet.</div>
           )}
@@ -2056,10 +2328,10 @@ const AppLayout = ({ children }) => {
         <AnimatePresence mode="wait">
           <motion.div 
             key={location.pathname}
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
             className="page-container"
           >
             {children}
@@ -2077,6 +2349,7 @@ const AppLayout = ({ children }) => {
 const App = () => (
   <AuthProvider>
     <SocketProvider>
+      <PeacefulBackground />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/reveal" element={<IdentityRevealPage />} />

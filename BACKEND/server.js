@@ -345,28 +345,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('typing_start', (data) => {
-    io.to(`user_${data.to}`).emit('typing_start', { fromId: data.from });
-  });
-
-  socket.on('typing_end', (data) => {
-    io.to(`user_${data.to}`).emit('typing_end', { fromId: data.from });
-  });
-
-  socket.on('new_reaction', async (data) => {
-    try {
-      const { confessionId, authorId, reactionType, from } = data;
-      
-      io.to(`user_${authorId}`).emit('reaction_notification', {
-        confessionId,
-        type: reactionType,
-        from: from
-      });
-    } catch (error) {
-      console.error('Reaction notification error:', error);
-    }
-  });
-
   socket.on('disconnect', () => {
     for (const [userId, socketId] of connectedUsers.entries()) {
       if (socketId === socket.id) {
@@ -1047,6 +1025,10 @@ app.post('/api/confessions', authenticate, async (req, res) => {
 // Get Single Confession
 app.get('/api/confessions/:id', authenticate, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid confession ID' });
+    }
+
     const confession = await Confession.findById(req.params.id)
       .populate('author', 'anonymousName rarity level title')
       .populate({
@@ -1072,6 +1054,10 @@ app.get('/api/confessions/:id', authenticate, async (req, res) => {
 // React to Confession
 app.post('/api/confessions/:id/react', authenticate, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid confession ID' });
+    }
+
     const { reactionType } = req.body;
     
     if (!REACTIONS[reactionType]) {
@@ -1137,6 +1123,10 @@ app.post('/api/confessions/:id/react', authenticate, async (req, res) => {
 // Get Comments
 app.get('/api/confessions/:id/comments', authenticate, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid confession ID' });
+    }
+
     const comments = await Comment.find({ confession: req.params.id, parentComment: null })
       .populate('author', 'anonymousName rarity level')
       .populate({
@@ -1155,6 +1145,10 @@ app.get('/api/confessions/:id/comments', authenticate, async (req, res) => {
 // Add Comment
 app.post('/api/confessions/:id/comments', authenticate, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid confession ID' });
+    }
+
     const { content, parentComment } = req.body;
     
     if (!content || content.trim().length === 0) {
@@ -1265,6 +1259,10 @@ app.get('/api/users/:id', authenticate, async (req, res) => {
 // Get User Confessions
 app.get('/api/users/:id/confessions', authenticate, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
@@ -1301,6 +1299,10 @@ app.get('/api/users/:id/confessions', authenticate, async (req, res) => {
 // Follow/Unfollow User
 app.post('/api/users/:id/follow', authenticate, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
     if (req.params.id === req.user._id.toString()) {
       return res.status(400).json({ error: 'Cannot follow yourself' });
     }
@@ -1359,51 +1361,39 @@ app.post('/api/users/:id/follow', authenticate, async (req, res) => {
 // Get Conversations
 app.get('/api/messages', authenticate, async (req, res) => {
   try {
-    const conversations = await Message.aggregate([
-      {
-        $match: {
-          $or: [{ sender: req.user._id }, { recipient: req.user._id }]
-        }
-      },
-      { $sort: { createdAt: -1 } },
-      {
-        $group: {
-          _id: {
-            $cond: [
-              { $eq: ["$sender", req.user._id] },
-              "$recipient",
-              "$sender"
-            ]
-          },
-          lastMessage: { $first: "$$ROOT" },
-          unreadCount: {
-            $sum: {
-              $cond: [
-                { $and: [{ $eq: ["$recipient", req.user._id] }, { $eq: ["$read", false] }] },
-                1,
-                0
-              ]
-            }
-          }
-        }
+    const messages = await Message.find({
+      $or: [{ sender: req.user._id }, { recipient: req.user._id }]
+    })
+      .populate('sender', 'anonymousName rarity')
+      .populate('recipient', 'anonymousName rarity')
+      .sort({ createdAt: -1 })
+      .limit(1000); // Prevents catastrophic memory limit exceptions for heavy users
+    
+    // Group by conversation partner
+    const conversations = new Map();
+    
+    for (const message of messages) {
+      // Prevent inbox crash if sender or recipient account was deleted from DB
+      if (!message.sender || !message.recipient) continue;
+
+      const partnerId = message.sender._id.toString() === req.user._id.toString() 
+        ? message.recipient._id.toString() 
+        : message.sender._id.toString();
+      
+      if (!conversations.has(partnerId)) {
+        conversations.set(partnerId, {
+          partner: message.sender._id.toString() === req.user._id.toString() ? message.recipient : message.sender,
+          lastMessage: message,
+          unread: 0
+        });
       }
-    ]);
-
-    const populatedConversations = await User.populate(conversations, {
-      path: '_id',
-      select: 'anonymousName rarity'
-    });
-
-    const formatted = populatedConversations
-      .filter(conv => conv._id != null)
-      .map(conv => ({
-        partner: conv._id,
-        lastMessage: conv.lastMessage,
-        unread: conv.unreadCount
-      }))
-      .sort((a, b) => new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt));
-
-    res.json(formatted);
+      
+      if (!message.read && message.recipient._id.toString() === req.user._id.toString()) {
+        conversations.get(partnerId).unread += 1;
+      }
+    }
+    
+    res.json(Array.from(conversations.values()));
   } catch (error) {
     console.error('Get messages error:', error);
     res.status(500).json({ error: 'Failed to load messages' });
@@ -1433,15 +1423,10 @@ app.get('/api/messages/:userId', authenticate, async (req, res) => {
     
     // Clear global notifications for these specific read messages
     await Notification.updateMany(
-      { recipient: req.user._id, type: 'message', 'data.from': new mongoose.Types.ObjectId(req.params.userId), read: false },
+      { recipient: req.user._id, type: 'message', 'data.from': req.params.userId, read: false },
       { read: true }
     );
     
-    // Emit real-time read receipt to the sender
-    io.to(`user_${req.params.userId}`).emit('messages_read', {
-      readBy: req.user._id.toString()
-    });
-
     res.json(messages);
   } catch (error) {
     console.error('Get conversation error:', error);

@@ -8,18 +8,18 @@
 
 :root {
   /* Refined Light Theme Colors */
-  --bg-primary: #fcfcfd;
-  --bg-secondary: rgba(255, 255, 255, 0.85);
-  --bg-card: rgba(255, 255, 255, 0.7);
-  --bg-hover: #f4f5f8;
+  --bg-primary: transparent;
+  --bg-secondary: rgba(255, 255, 255, 0.6);
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --bg-hover: rgba(255, 255, 255, 0.95);
   
-  --text-primary: #1e1e2f;
-  --text-secondary: #525266;
-  --text-muted: #8e8ea0;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
   
-  --accent-primary: #6d28d9;
-  --accent-secondary: #9333ea;
-  --accent-light: #f3e8ff;
+  --accent-primary: #3b82f6;
+  --accent-secondary: #0ea5e9;
+  --accent-light: #e0f2fe;
   
   --success: #10b981;
   --warning: #f59e0b;
@@ -47,10 +47,29 @@
   box-sizing: border-box;
 }
 
+/* Animated Peaceful Background */
+.peaceful-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  background: linear-gradient(120deg, #ffe4e6, #fef9c3, #dcfce7, #e0f2fe, #ffedd5);
+  background-size: 400% 400%;
+  animation: gradientDrift 25s ease infinite;
+  overflow: hidden;
+}
+
+@keyframes gradientDrift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
 html, body, #root {
-  background-color: #fcfcfd !important;
-  background-image: radial-gradient(circle at top right, #f3e8ff 0%, #fcfcfd 30%, #e0f2fe 100%) !important;
-  background-attachment: fixed !important;
+  background-color: transparent !important;
+  background-image: none !important;
   color: var(--text-primary) !important;
   font-family: 'Inter', system-ui, sans-serif;
   min-height: 100vh;
@@ -412,7 +431,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at top left, #f3e8ff 0%, #fcfcfd 40%, #e0f2fe 100%);
+  background: transparent;
   padding: 20px;
 }
 
@@ -435,13 +454,13 @@ html, body, #root {
 .auth-logo-icon {
   width: 80px;
   height: 80px;
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 16px;
-  box-shadow: 0 8px 25px rgba(124, 58, 237, 0.2);
+  box-shadow: var(--shadow-md);
 }
 
 .auth-logo-icon svg {
@@ -530,7 +549,7 @@ html, body, #root {
 .btn-primary {
   width: 100%;
   padding: 14px;
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
   border: none;
   border-radius: 14px;
   color: white;
@@ -543,7 +562,7 @@ html, body, #root {
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(124, 58, 237, 0.3);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-primary:disabled {
@@ -707,7 +726,7 @@ html, body, #root {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at center, #f3e8ff 0%, #fcfcfd 60%, #e0f2fe 100%);
+  background: transparent;
   position: relative;
 }
 
@@ -723,7 +742,7 @@ html, body, #root {
 .visualizer-ring {
   position: absolute;
   border-radius: 50%;
-  border: 1px solid rgba(124, 58, 237, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.15);
   animation: visualizerPulse 4s ease-in-out infinite;
 }
 
@@ -747,7 +766,8 @@ html, body, #root {
   padding: 48px;
   border-radius: 48px;
   box-shadow: var(--shadow-xl);
-  min-width: 400px;
+  width: 100%;
+  max-width: 400px;
 }
 
 .radio-orb {
@@ -816,10 +836,10 @@ html, body, #root {
 .radio-btn.play {
   width: 72px;
   height: 72px;
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
   border: none;
   color: white;
-  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
+  box-shadow: var(--shadow-md);
 }
 
 /* Messages Page */
@@ -905,7 +925,7 @@ html, body, #root {
 
 .message-bubble.sent {
   align-self: flex-end;
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
   color: white;
   border-bottom-right-radius: 4px;
 }
@@ -950,7 +970,7 @@ html, body, #root {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
   border: none;
   color: white;
   display: flex;
@@ -1017,7 +1037,7 @@ html, body, #root {
 .identity-reveal-screen {
   position: fixed;
   inset: 0;
-  background: radial-gradient(circle at center, #f3e8ff 0%, #fcfcfd 60%, #e0f2fe 100%);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1040,7 +1060,8 @@ html, body, #root {
   backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: var(--shadow-xl);
-  min-width: 400px;
+  width: 100%;
+  max-width: 400px;
 }
 
 .identity-name {
@@ -1081,7 +1102,7 @@ html, body, #root {
 
 .hold-to-reveal-btn:hover {
   transform: scale(1.05);
-  box-shadow: 0 8px 25px rgba(124, 58, 237, 0.3);
+  box-shadow: var(--shadow-md);
 }
 
 .progress-ring {
@@ -1120,7 +1141,7 @@ html, body, #root {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
   border: none;
   color: white;
   display: flex;
