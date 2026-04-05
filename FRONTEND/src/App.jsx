@@ -1928,7 +1928,7 @@ const MessagesPage = () => {
                 <p className="message-time">
                   {formatRelativeTime(msg.createdAt)}
                   {msg.sender?._id !== selectedUser && (
-                    <span className={`ml-2 font-bold ${msg.read ? 'text-blue-400' : 'text-inherit'}`}>{msg.read ? '✓✓' : '✓'}</span>
+                    <span className={`ml-2 font-bold ${msg.read ? 'text-red-500' : 'text-inherit'}`}>{msg.read ? '✓✓' : '✓'}</span>
                   )}
                 </p>
               </div>
