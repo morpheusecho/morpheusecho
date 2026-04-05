@@ -97,12 +97,12 @@ const MOCK_MESSAGES = [
 const CATEGORIES = [
   { id: 'adult', name: 'Adult', color: '#8B0000' },
   { id: 'crime', name: 'Crime', color: '#4A4A4A' },
-  { id: 'funny', name: 'Funny', color: '#FFD700' },
+  { id: 'funny', name: 'Funny', color: '#D97706' },
   { id: 'romantic', name: 'Romantic Crush', color: '#FF69B4' },
   { id: 'insult', name: 'Insult', color: '#FF8C00' },
   { id: 'sorrow', name: 'Sorrow & Grief', color: '#191970' },
   { id: 'pain', name: 'Pain', color: '#800000' },
-  { id: 'god', name: 'To The God', color: '#FFD700' },
+  { id: 'god', name: 'To The God', color: '#D97706' },
   { id: 'family', name: 'Dear Family', color: '#8B4513' },
   { id: 'opinion', name: 'Unpopular Opinions', color: '#800080' },
   { id: 'work', name: 'Work & Career', color: '#008080' },
@@ -160,7 +160,7 @@ const formatRelativeTime = (date) => {
 const getRarityColor = (rarity) => {
   const colors = {
     MYTHIC: '#FF00FF',
-    LEGENDARY: '#FFD700',
+    LEGENDARY: '#D97706',
     EXCLUSIVE: '#00FFFF',
     RARE: '#C9A84C',
     UNCOMMON: '#C0C0C0',
@@ -442,7 +442,7 @@ const RarityBadge = ({ rarity, size = 'md' }) => {
   const sizeClasses = { sm: 'text-[10px] px-2 py-0.5', md: 'text-xs px-3 py-1', lg: 'text-sm px-4 py-1.5' };
   const config = {
     MYTHIC: { color: '#FF00FF', icon: '∞' },
-    LEGENDARY: { color: '#FFD700', icon: '⚡' },
+    LEGENDARY: { color: '#D97706', icon: '⚡' },
     EXCLUSIVE: { color: '#00FFFF', icon: '💎' },
     RARE: { color: '#C9A84C', icon: '✨' },
     UNCOMMON: { color: '#C0C0C0', icon: '🌙' }
@@ -518,7 +518,7 @@ const ConfessionCard = ({ confession, onDelete }) => {
     holdTimeoutRef.current = setTimeout(() => {
       const interval = setInterval(() => {
         setHoldProgress(prev => {
-          const newProgress = prev + 2;
+          const newProgress = prev + 4;
           if (newProgress >= 100) {
             clearInterval(interval);
             setIsRevealed(true);
@@ -677,7 +677,7 @@ const ConfessionCard = ({ confession, onDelete }) => {
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.4 }}
+      transition={{ duration: 0.2 }}
       className={`confession-card ${getRarityFrameClass(confession.author?.rarity)}`}
     >
       <div className="card-header">
@@ -963,7 +963,7 @@ const LoginPage = () => {
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: 0.2 }}
         className="auth-card"
       >
         <div className="auth-logo">
@@ -1057,7 +1057,7 @@ const IdentityRevealPage = () => {
     holdTimeoutRef.current = setTimeout(() => {
       const interval = setInterval(() => {
         setHoldProgress(prev => {
-          const newProgress = prev + 2;
+          const newProgress = prev + 4;
           if (newProgress >= 100) {
             clearInterval(interval);
             setIsRevealed(true);
@@ -2331,7 +2331,7 @@ const AppLayout = ({ children }) => {
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -5 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
+            transition={{ duration: 0.15, ease: "easeInOut" }}
             className="page-container"
           >
             {children}

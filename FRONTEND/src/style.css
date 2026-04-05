@@ -26,7 +26,7 @@
   --danger: #ef4444;
   
   --mythic: #d946ef;
-  --legendary: #fbbf24;
+  --legendary: #d97706;
   --exclusive: #0ea5e9;
   --rare: #f97316;
   --uncommon: #8b5cf6;
@@ -195,7 +195,7 @@ html, body, #root {
   border-radius: 20px;
   padding: 24px;
   margin-bottom: 20px;
-       transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
        border: 1px solid rgba(255, 255, 255, 0.6);
        box-shadow: var(--shadow-md);
        backdrop-filter: blur(12px);
@@ -291,7 +291,7 @@ html, body, #root {
 .blur-content {
   filter: blur(8px);
   opacity: 0.6;
-  transition: all 0.5s ease;
+  transition: all 0.2s ease;
   user-select: none;
 }
 .blur-content.revealed {
@@ -687,7 +687,7 @@ html, body, #root {
   height: 100%;
   background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
   border-radius: 9999px;
-  transition: width 0.5s ease;
+  transition: width 0.3s ease;
 }
 
 /* Badges */
