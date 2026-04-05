@@ -7,11 +7,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        'echo-bg': '#111111',
-        'echo-surface': '#1A1A2E',
-        'echo-card': '#2D2D44',
-        'echo-accent': '#6C63FF',
-        'echo-accent-light': '#9D97FF',
+        'echo-bg': '#0a0a0f',
+        'echo-surface': '#11111f',
+        'echo-card': '#1a1a2e',
+        'echo-accent': '#7c3aed',
+        'echo-accent-light': '#a855f7',
       },
       fontFamily: {
         'display': ['Cinzel', 'serif'],

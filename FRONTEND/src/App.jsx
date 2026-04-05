@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback, useContext, createContext } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, Navigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useContext, createContext } from 'react';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, Navigate, useLocation } from 'react-router-dom';
 
 // =============================================================================
 // IDENTITY POOLS - YOUR EXACT SCHEME
@@ -136,35 +136,22 @@ function getColorByRarity(rarity) {
 }
 
 async function generateUniqueIdentity() {
-  const MAX_ATTEMPTS = 10;
+  const rarity = generateRarity();
+  const color = getColorByRarity(rarity);
+  const creature = getCreatureByRarity(rarity);
+  const city = getCityByRarity(rarity);
+  const number = Math.floor(Math.random() * 999) + 1;
   
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const rarity = generateRarity();
-    const color = getColorByRarity(rarity);
-    const creature = getCreatureByRarity(rarity);
-    const city = getCityByRarity(rarity);
-    const number = Math.floor(Math.random() * 999) + 1;
-    
-    const identity = `${color} ${creature} of ${city} ${number}`;
-    
-    // In demo mode, just return (no DB check)
-    return { identity, rarity };
-  }
+  const identity = `${color} ${creature} of ${city} ${number}`;
   
-  // Fallback
-  const color = ALL_COLORS[Math.floor(Math.random() * ALL_COLORS.length)];
-  const creature = ALL_CREATURES[Math.floor(Math.random() * ALL_CREATURES.length)];
-  const city = ALL_CITIES[Math.floor(Math.random() * ALL_CITIES.length)];
-  const number = Math.floor(Math.random() * 9999) + 1;
-  
-  return { identity: `${color} ${creature} of ${city} ${number}`, rarity: 'COMMON' };
+  return { identity, rarity };
 }
 
 // =============================================================================
 // MOCK DATA FOR DEMO
 // =============================================================================
 const MOCK_USER = {
-  id: 'demo123',
+  _id: 'demo123',
   anonymousName: 'Crimson Phoenix of Avalon 7',
   rarity: 'LEGENDARY',
   gender: 'male',
@@ -176,7 +163,8 @@ const MOCK_USER = {
   totalConfessions: 12,
   totalReactions: 89,
   followers: 45,
-  following: 23
+  following: 23,
+  isFollowing: false
 };
 
 const MOCK_CONFESSIONS = [
@@ -185,7 +173,7 @@ const MOCK_CONFESSIONS = [
     authorName: 'Azure Dragon of Shambhala 3',
     author: { _id: 'user1', anonymousName: 'Azure Dragon of Shambhala 3', rarity: 'LEGENDARY', level: 45, title: 'Shadow Voice' },
     type: 'text',
-    content: "I've been in love with my best friend for 5 years but never had the courage to tell them. Every time they talk about their crushes, my heart breaks a little more. I know I'll never say anything because I'd rather have them in my life as a friend than risk losing them completely.",
+    content: "I've been in love with my best friend for 5 years but never had the courage to tell them. Every time they talk about their crushes, my heart breaks a little more.",
     categories: ['romantic', 'mental'],
     mood: '💔',
     reactions: { meToo: ['u1', 'u2', 'u3'], sendingLove: ['u4', 'u5'], wow: [], sameLol: [], stayStrong: ['u6'], respect: ['u7', 'u8'] },
@@ -211,7 +199,7 @@ const MOCK_CONFESSIONS = [
     authorName: 'Golden Unicorn of Kyoto 9',
     author: { _id: 'user3', anonymousName: 'Golden Unicorn of Kyoto 9', rarity: 'RARE', level: 23, title: 'Whisperer' },
     type: 'text',
-    content: "I cheated on my final exam and got the highest score in class. Everyone thinks I'm smart but I just had the answers on my phone. The guilt is eating me alive.",
+    content: "I cheated on my final exam and got the highest score in class. The guilt is eating me alive.",
     categories: ['crime', 'mental'],
     mood: '😰',
     reactions: { meToo: ['u1', 'u2'], sendingLove: ['u3'], wow: ['u4', 'u5', 'u6'], sameLol: [], stayStrong: [], respect: [] },
@@ -241,9 +229,9 @@ const MOCK_CONVERSATIONS = [
 ];
 
 const MOCK_MESSAGES = [
-  { _id: '1', sender: { _id: 'user1' }, content: 'Hey, I read your confession about your best friend...', createdAt: new Date(Date.now() - 3600000).toISOString(), read: true },
-  { _id: '2', sender: { _id: 'demo123' }, content: 'Yeah, it\'s been really hard keeping it in', createdAt: new Date(Date.now() - 3500000).toISOString(), read: true },
-  { _id: '3', sender: { _id: 'user1' }, content: 'Thank you for sharing that. I feel the same way...', createdAt: new Date(Date.now() - 300000).toISOString(), read: false }
+  { _id: '1', sender: { _id: 'user1' }, content: 'Hey, I read your confession...', createdAt: new Date(Date.now() - 3600000).toISOString(), read: true },
+  { _id: '2', sender: { _id: 'demo123' }, content: 'Yeah, it\'s been really hard', createdAt: new Date(Date.now() - 3500000).toISOString(), read: true },
+  { _id: '3', sender: { _id: 'user1' }, content: 'I feel the same way...', createdAt: new Date(Date.now() - 300000).toISOString(), read: false }
 ];
 
 // =============================================================================
@@ -391,12 +379,24 @@ const AuthProvider = ({ children }) => {
 
   const signup = async (userData) => {
     const { identity, rarity } = await generateUniqueIdentity();
+    
     const newUser = { 
-      ...MOCK_USER, 
-      anonymousName: identity, 
+      _id: 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11),
+      anonymousName: identity,
       rarity: rarity,
-      gender: userData.gender 
+      gender: userData.gender,
+      xp: 0,
+      level: 1,
+      title: 'Whisperer',
+      streak: 0,
+      badges: rarity === 'LEGENDARY' || rarity === 'MYTHIC' ? ['mythical'] : [],
+      totalConfessions: 0,
+      totalReactions: 0,
+      followers: 0,
+      following: 0,
+      isFollowing: false
     };
+    
     localStorage.setItem('morpheus_user', JSON.stringify(newUser));
     setUser(newUser);
     return { success: true, user: newUser };
@@ -428,15 +428,15 @@ const ProtectedRoute = ({ children }) => {
 };
 
 // =============================================================================
-// FOLLOW BUTTON COMPONENT (NEW)
+// FOLLOW BUTTON COMPONENT
 // =============================================================================
 const FollowButton = ({ userId, initialFollowing, onFollowChange }) => {
   const [isFollowing, setIsFollowing] = useState(initialFollowing);
   const [loading, setLoading] = useState(false);
 
-  const handleFollow = async () => {
+  const handleFollow = async (e) => {
+    e.stopPropagation();
     setLoading(true);
-    // Simulate API call - replace with actual API
     setTimeout(() => {
       setIsFollowing(!isFollowing);
       if (onFollowChange) onFollowChange(!isFollowing);
@@ -492,45 +492,55 @@ const AuthorOrb = ({ rarity, size = 40 }) => (
 const ConfessionCard = ({ confession }) => {
   const { user } = useAuth();
   const [isRevealed, setIsRevealed] = useState(false);
-  const [isHolding, setIsHolding] = useState(false);
   const [holdProgress, setHoldProgress] = useState(0);
   const [localReactions, setLocalReactions] = useState(confession.reactions);
   const progressInterval = useRef(null);
+  const holdTimeoutRef = useRef(null);
 
   const handleHoldStart = () => {
     if (isRevealed) return;
-    setIsHolding(true);
-    const startTime = Date.now();
-    progressInterval.current = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(100, (elapsed / 1500) * 100);
-      setHoldProgress(progress);
-      if (progress >= 100) {
-        setIsRevealed(true);
-        clearInterval(progressInterval.current);
-      }
-    }, 16);
+    
+    holdTimeoutRef.current = setTimeout(() => {
+      const interval = setInterval(() => {
+        setHoldProgress(prev => {
+          const newProgress = prev + 2;
+          if (newProgress >= 100) {
+            clearInterval(interval);
+            setIsRevealed(true);
+            setHoldProgress(0);
+            return 0;
+          }
+          return newProgress;
+        });
+      }, 16);
+      progressInterval.current = interval;
+    }, 200);
   };
 
   const handleHoldEnd = () => {
-    setIsHolding(false);
-    clearInterval(progressInterval.current);
-    if (!isRevealed) setHoldProgress(0);
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+    }
+    if (progressInterval.current) {
+      clearInterval(progressInterval.current);
+    }
+    setHoldProgress(0);
   };
 
-  const handleReaction = (reactionType) => {
+  const handleReaction = (reactionType, e) => {
+    e.stopPropagation();
     setLocalReactions(prev => {
-      const hasReacted = prev[reactionType]?.includes(user?.id);
+      const hasReacted = prev[reactionType]?.includes(user?._id);
       return {
         ...prev,
         [reactionType]: hasReacted
-          ? prev[reactionType].filter(id => id !== user.id)
-          : [...(prev[reactionType] || []), user?.id]
+          ? prev[reactionType].filter(id => id !== user?._id)
+          : [...(prev[reactionType] || []), user?._id]
       };
     });
   };
 
-  const hasReacted = (type) => localReactions[type]?.includes(user?.id);
+  const hasReacted = (type) => localReactions[type]?.includes(user?._id);
   const reactionCount = (type) => localReactions[type]?.length || 0;
 
   return (
@@ -561,13 +571,20 @@ const ConfessionCard = ({ confession }) => {
         {confession.mood && <span className="text-lg">{confession.mood}</span>}
       </div>
 
-      <div className="blur-reveal-container relative" onMouseDown={handleHoldStart} onMouseUp={handleHoldEnd} onMouseLeave={handleHoldEnd} onTouchStart={handleHoldStart} onTouchEnd={handleHoldEnd}>
+      <div 
+        className="blur-reveal-container relative cursor-pointer"
+        onMouseDown={handleHoldStart}
+        onMouseUp={handleHoldEnd}
+        onMouseLeave={handleHoldEnd}
+        onTouchStart={handleHoldStart}
+        onTouchEnd={handleHoldEnd}
+      >
         <div className={`blur-content ${isRevealed ? 'revealed' : ''}`}>
           {confession.type === 'text' ? (
             <p className="card-content">{confession.content}</p>
           ) : (
             <div className="audio-player">
-              <button className="play-btn">
+              <button className="play-btn" onClick={(e) => e.stopPropagation()}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               </button>
               <div className="waveform">
@@ -580,9 +597,9 @@ const ConfessionCard = ({ confession }) => {
           )}
         </div>
 
-        {!isRevealed && (
+        {!isRevealed && holdProgress > 0 && (
           <div className="blur-overlay">
-            <button className="hold-to-reveal-btn">
+            <div className="hold-to-reveal-btn">
               <div className="progress-ring">
                 <svg width="48" height="48" viewBox="0 0 48 48">
                   <circle className="progress-ring-bg" cx="24" cy="24" r="20"></circle>
@@ -590,7 +607,7 @@ const ConfessionCard = ({ confession }) => {
                 </svg>
               </div>
               <span>Hold to reveal</span>
-            </button>
+            </div>
           </div>
         )}
       </div>
@@ -598,18 +615,22 @@ const ConfessionCard = ({ confession }) => {
       <div className="card-actions">
         <div className="reactions-row">
           {Object.entries(REACTIONS).map(([type, { emoji, label }]) => (
-            <button key={type} onClick={() => handleReaction(type)} className={`reaction-btn ${hasReacted(type) ? 'active' : ''}`}>
+            <button 
+              key={type} 
+              onClick={(e) => handleReaction(type, e)} 
+              className={`reaction-btn ${hasReacted(type) ? 'active' : ''}`}
+            >
               <span>{emoji}</span>
               <span>{reactionCount(type) > 0 ? reactionCount(type) : label}</span>
             </button>
           ))}
         </div>
         <div className="action-buttons">
-          <button className="action-btn" title="Comments">
+          <button className="action-btn" title="Comments" onClick={(e) => e.stopPropagation()}>
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             {confession.commentCount > 0 && <span>{confession.commentCount}</span>}
           </button>
-          <button className="action-btn" title="Share">
+          <button className="action-btn" title="Share" onClick={(e) => e.stopPropagation()}>
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           </button>
         </div>
@@ -622,7 +643,7 @@ const ConfessionCard = ({ confession }) => {
 // BOTTOM NAVIGATION
 // =============================================================================
 const BottomNav = () => {
-  const location = window.location.pathname;
+  const location = useLocation();
   const unreadCount = 2;
 
   const navItems = [
@@ -637,7 +658,7 @@ const BottomNav = () => {
   return (
     <nav className="bottom-nav">
       {navItems.map((item) => (
-        <Link key={item.path} to={item.path} className={`nav-item ${location === item.path ? 'active' : ''}`}>
+        <Link key={item.path} to={item.path} className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}>
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             {item.icon === 'home' && <><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>}
             {item.icon === 'edit' && <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>}
@@ -659,7 +680,7 @@ const BottomNav = () => {
 // =============================================================================
 const Sidebar = () => {
   const { user, logout } = useAuth();
-  const location = window.location.pathname;
+  const location = useLocation();
   const unreadCount = 2;
 
   const navItems = [
@@ -685,7 +706,7 @@ const Sidebar = () => {
 
       <nav className="flex-1">
         {navItems.map((item) => (
-          <Link key={item.path} to={item.path} className={`sidebar-item ${location === item.path ? 'active' : ''}`}>
+          <Link key={item.path} to={item.path} className={`sidebar-item ${location.pathname === item.path ? 'active' : ''}`}>
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               {item.icon === 'home' && <><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>}
               {item.icon === 'edit' && <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>}
@@ -731,6 +752,11 @@ const LoginPage = () => {
       if (result.success) navigate('/');
       else setError(result.error);
     } else {
+      if (!formData.ageVerified) {
+        setError('You must verify you are 18+ to join');
+        setLoading(false);
+        return;
+      }
       const result = await signup({ ...formData, age: parseInt(formData.age) });
       if (result.success) navigate('/reveal', { state: { user: result.user } });
       else setError(result.error);
@@ -802,40 +828,45 @@ const LoginPage = () => {
 };
 
 // =============================================================================
-// IDENTITY REVEAL PAGE
+// IDENTITY REVEAL PAGE (FIXED - uses useLocation)
 // =============================================================================
 const IdentityRevealPage = () => {
-  const location = window.location;
+  const location = useLocation();
   const user = location.state?.user || MOCK_USER;
   const navigate = useNavigate();
   const [isRevealed, setIsRevealed] = useState(false);
   const [holdProgress, setHoldProgress] = useState(0);
-  const [isHolding, setIsHolding] = useState(false);
   const progressInterval = useRef(null);
+  const holdTimeoutRef = useRef(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => { if (isRevealed) navigate('/'); }, 3000);
-    return () => clearTimeout(timer);
+    if (isRevealed) {
+      const timer = setTimeout(() => navigate('/'), 3000);
+      return () => clearTimeout(timer);
+    }
   }, [isRevealed, navigate]);
 
   const handleHoldStart = () => {
-    setIsHolding(true);
-    const startTime = Date.now();
-    progressInterval.current = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(100, (elapsed / 1500) * 100);
-      setHoldProgress(progress);
-      if (progress >= 100) {
-        setIsRevealed(true);
-        clearInterval(progressInterval.current);
-      }
-    }, 16);
+    holdTimeoutRef.current = setTimeout(() => {
+      const interval = setInterval(() => {
+        setHoldProgress(prev => {
+          const newProgress = prev + 2;
+          if (newProgress >= 100) {
+            clearInterval(interval);
+            setIsRevealed(true);
+            return 0;
+          }
+          return newProgress;
+        });
+      }, 16);
+      progressInterval.current = interval;
+    }, 200);
   };
 
   const handleHoldEnd = () => {
-    setIsHolding(false);
-    clearInterval(progressInterval.current);
-    if (!isRevealed) setHoldProgress(0);
+    if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
+    if (progressInterval.current) clearInterval(progressInterval.current);
+    setHoldProgress(0);
   };
 
   return (
@@ -848,7 +879,14 @@ const IdentityRevealPage = () => {
               <div className={`w-64 h-32 ${getRarityFrameClass(user.rarity)} rounded-xl flex items-center justify-center mb-8`} style={{ filter: `blur(${20 - (holdProgress / 100) * 20}px)` }}>
                 <span className={`font-display text-xl ${getRarityTextClass(user.rarity)}`}>{user.anonymousName}</span>
               </div>
-              <button className="hold-to-reveal-btn" onMouseDown={handleHoldStart} onMouseUp={handleHoldEnd} onMouseLeave={handleHoldEnd} onTouchStart={handleHoldStart} onTouchEnd={handleHoldEnd}>
+              <button 
+                className="hold-to-reveal-btn" 
+                onMouseDown={handleHoldStart}
+                onMouseUp={handleHoldEnd}
+                onMouseLeave={handleHoldEnd}
+                onTouchStart={handleHoldStart}
+                onTouchEnd={handleHoldEnd}
+              >
                 <div className="progress-ring">
                   <svg width="48" height="48" viewBox="0 0 48 48">
                     <circle className="progress-ring-bg" cx="24" cy="24" r="20"></circle>
@@ -880,13 +918,19 @@ const IdentityRevealPage = () => {
 // HOME FEED PAGE
 // =============================================================================
 const HomePage = () => {
-  const [confessions, setConfessions] = useState(MOCK_CONFESSIONS);
+  const [confessions] = useState(MOCK_CONFESSIONS);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('trending');
 
   const filteredConfessions = selectedCategory === 'all' 
     ? confessions 
     : confessions.filter(c => c.categories.includes(selectedCategory));
+
+  const sortedConfessions = [...filteredConfessions].sort((a, b) => {
+    if (sortBy === 'new') return new Date(b.createdAt) - new Date(a.createdAt);
+    if (sortBy === 'trending') return (b.views || 0) - (a.views || 0);
+    return 0;
+  });
 
   return (
     <div className="min-h-screen pb-20 md:pb-0">
@@ -911,7 +955,7 @@ const HomePage = () => {
 
       <div className="p-4">
         <div className="space-y-4">
-          {filteredConfessions.map(confession => (
+          {sortedConfessions.map(confession => (
             <ConfessionCard key={confession._id} confession={confession} />
           ))}
         </div>
@@ -950,7 +994,8 @@ const CreatePage = () => {
   const stopRecording = () => {
     setIsRecording(false);
     clearInterval(timerRef.current);
-    setAudioBlob(new Blob());
+    // In a real app, you'd capture actual audio data here
+    setAudioBlob(new Blob(['dummy audio data'], { type: 'audio/webm' }));
   };
 
   const toggleCategory = (catId) => {
@@ -1006,7 +1051,7 @@ const CreatePage = () => {
             ) : (
               <div className="bg-[#1a1a2e] rounded-xl p-4">
                 <div className="flex items-center gap-4">
-                  <button className="play-btn w-12 h-12"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+                  <button className="play-btn w-12 h-12" onClick={(e) => e.stopPropagation()}><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
                   <div className="flex-1"><div className="waveform h-10">{Array.from({ length: 20 }).map((_, i) => <div key={i} className="waveform-bar" style={{ height: `${Math.random() * 30 + 10}px` }}></div>)}</div></div>
                   <span className="text-sm text-gray-400">{formatTime(recordingTime)}</span>
                 </div>
@@ -1078,10 +1123,17 @@ const RadioPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
 
   const handleNext = () => {
-    const random = MOCK_CONFESSIONS[Math.floor(Math.random() * MOCK_CONFESSIONS.length)];
-    setCurrentConfession(random);
+    const filtered = selectedCategory === 'all' 
+      ? MOCK_CONFESSIONS 
+      : MOCK_CONFESSIONS.filter(c => c.categories.includes(selectedCategory));
+    const random = filtered[Math.floor(Math.random() * filtered.length)];
+    if (random) setCurrentConfession(random);
     setIsPlaying(true);
   };
+
+  useEffect(() => {
+    handleNext();
+  }, [selectedCategory]);
 
   return (
     <div className="radio-container">
@@ -1114,7 +1166,7 @@ const RadioPage = () => {
           <button onClick={handleNext} className="radio-btn"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg></button>
         </div>
 
-        <p className="mt-8 text-gray-400 text-sm">5 whispers in queue</p>
+        <p className="mt-8 text-gray-400 text-sm">{MOCK_CONFESSIONS.filter(c => selectedCategory === 'all' || c.categories.includes(selectedCategory)).length} whispers in queue</p>
       </div>
     </div>
   );
@@ -1130,14 +1182,14 @@ const MessagesPage = () => {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [selectedUser]);
+  }, [selectedUser, MOCK_MESSAGES]);
 
   return (
     <div className="messages-container">
       <div className="conversations-list">
         <div className="p-4 border-b border-[#7c3aed]/10"><h2 className="font-display text-xl text-white">Messages</h2></div>
-        {MOCK_CONVERSATIONS.map((conv, idx) => (
-          <div key={idx} onClick={() => setSelectedUser(conv.partner._id)} className={`conversation-item ${selectedUser === conv.partner._id ? 'active' : ''}`}>
+        {MOCK_CONVERSATIONS.map((conv) => (
+          <div key={conv.partner._id} onClick={() => setSelectedUser(conv.partner._id)} className={`conversation-item ${selectedUser === conv.partner._id ? 'active' : ''}`}>
             <AuthorOrb rarity={conv.partner.rarity} size={44} />
             <div className="conversation-preview">
               <p className="conversation-name text-white">{conv.partner.anonymousName}</p>
@@ -1159,8 +1211,8 @@ const MessagesPage = () => {
           </div>
 
           <div className="chat-messages">
-            {MOCK_MESSAGES.map((msg, idx) => (
-              <div key={idx} className={`message-bubble ${msg.sender._id === selectedUser ? 'received' : 'sent'}`}>
+            {MOCK_MESSAGES.filter(msg => msg.sender._id === selectedUser || msg.sender._id === 'demo123').map((msg, idx) => (
+              <div key={msg._id || idx} className={`message-bubble ${msg.sender._id === selectedUser ? 'received' : 'sent'}`}>
                 <p>{msg.content}</p>
                 <p className="message-time">{formatRelativeTime(msg.createdAt)}{msg.sender._id !== selectedUser && <span className="ml-2">{msg.read ? '✓✓' : '✓'}</span>}</p>
               </div>
@@ -1169,7 +1221,7 @@ const MessagesPage = () => {
           </div>
 
           <div className="chat-input-container">
-            <input type="text" className="chat-input" placeholder="Type your whisper..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} maxLength={500} />
+            <input type="text" className="chat-input" placeholder="Type your whisper..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} maxLength={500} onKeyPress={(e) => e.key === 'Enter' && newMessage.trim() && (setNewMessage(''), alert('Message sent (Demo Mode)'))} />
             <button onClick={() => { if (newMessage.trim()) { setNewMessage(''); alert('Message sent (Demo Mode)'); } }} className="chat-send-btn"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
           </div>
         </div>
@@ -1189,6 +1241,12 @@ const MessagesPage = () => {
 // NOTIFICATIONS PAGE
 // =============================================================================
 const NotificationsPage = () => {
+  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+
+  const markAllRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
   const getNotificationIcon = (type) => ({ reaction: 'heart', comment: 'message-square', message: 'message-circle', follow: 'user-plus', chain: 'link', streak: 'flame', level: 'trending-up' }[type] || 'bell');
 
   return (
@@ -1196,14 +1254,14 @@ const NotificationsPage = () => {
       <div className="sticky top-0 z-10 bg-[#0a0a0f]/95 backdrop-blur-lg border-b border-[#7c3aed]/10">
         <div className="p-4 flex items-center justify-between">
           <h1 className="font-display text-xl text-white">Notifications</h1>
-          {MOCK_NOTIFICATIONS.some(n => !n.read) && <button className="text-sm text-[#7c3aed] hover:text-[#a855f7]">Mark all read</button>}
+          {notifications.some(n => !n.read) && <button onClick={markAllRead} className="text-sm text-[#7c3aed] hover:text-[#a855f7]">Mark all read</button>}
         </div>
       </div>
 
       <div className="p-4">
         <div className="space-y-3">
-          {MOCK_NOTIFICATIONS.map((notification, idx) => (
-            <div key={idx} className={`notification-item ${!notification.read ? 'unread' : ''}`}>
+          {notifications.map((notification) => (
+            <div key={notification._id} className={`notification-item ${!notification.read ? 'unread' : ''}`}>
               <div className="notification-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#7c3aed]">
                   {getNotificationIcon(notification.type) === 'heart' && <><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></>}
@@ -1231,14 +1289,17 @@ const NotificationsPage = () => {
 const ProfilePage = () => {
   const { id } = useParams();
   const { user: currentUser } = useAuth();
-  const profile = id === 'me' || id === currentUser?.id ? currentUser : MOCK_CONFESSIONS[0].author;
-  const isOwnProfile = id === 'me' || id === currentUser?.id;
-  const xpPercent = ((profile.xp % 100) / 100) * 100;
+  const profile = (id === 'me' || id === currentUser?._id) ? currentUser : MOCK_CONFESSIONS[0].author;
+  const isOwnProfile = (id === 'me' || id === currentUser?._id);
+  const xpPercent = profile ? ((profile.xp % 100) / 100) * 100 : 0;
 
   const handleFollowChange = (newStatus) => {
     console.log('Follow status changed:', newStatus);
-    // Update UI or refetch profile data here
   };
+
+  if (!profile) {
+    return <div className="min-h-screen flex items-center justify-center"><div className="text-gray-400">User not found</div></div>;
+  }
 
   return (
     <div className="min-h-screen pb-20 md:pb-0">
@@ -1251,18 +1312,17 @@ const ProfilePage = () => {
         <RarityBadge rarity={profile.rarity} />
 
         <div className="profile-stats">
-          <div className="stat-item"><p className="stat-value">{profile.totalConfessions}</p><p className="stat-label">Whispers</p></div>
-          <div className="stat-item"><p className="stat-value">{profile.totalReactions}</p><p className="stat-label">Echoes</p></div>
-          <div className="stat-item"><p className="stat-value">{profile.followers}</p><p className="stat-label">Followers</p></div>
-          <div className="stat-item"><p className="stat-value">{profile.following}</p><p className="stat-label">Following</p></div>
+          <div className="stat-item"><p className="stat-value">{profile.totalConfessions || 0}</p><p className="stat-label">Whispers</p></div>
+          <div className="stat-item"><p className="stat-value">{profile.totalReactions || 0}</p><p className="stat-label">Echoes</p></div>
+          <div className="stat-item"><p className="stat-value">{profile.followers || 0}</p><p className="stat-label">Followers</p></div>
+          <div className="stat-item"><p className="stat-value">{profile.following || 0}</p><p className="stat-label">Following</p></div>
         </div>
 
-        {/* FOLLOW BUTTON ADDED HERE */}
         {!isOwnProfile && (
           <div className="profile-actions">
             <FollowButton 
               userId={profile._id}
-              initialFollowing={profile.isFollowing}
+              initialFollowing={profile.isFollowing || false}
               onFollowChange={handleFollowChange}
             />
             <Link to={`/messages?to=${profile._id}`} className="profile-btn secondary">
@@ -1272,7 +1332,7 @@ const ProfilePage = () => {
         )}
 
         <div className="xp-bar-container">
-          <div className="xp-bar-label"><span>Level {profile.level}</span><span>{profile.xp} XP</span></div>
+          <div className="xp-bar-label"><span>Level {profile.level || 1}</span><span>{profile.xp || 0} XP</span></div>
           <div className="xp-bar"><div className="xp-bar-fill" style={{ width: `${xpPercent}%` }}></div></div>
         </div>
       </div>
