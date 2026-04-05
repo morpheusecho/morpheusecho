@@ -345,6 +345,18 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('typing_start', (data) => {
+    if (data.to && data.from) {
+      socket.to(`user_${data.to}`).emit('typing_start', { fromId: data.from });
+    }
+  });
+
+  socket.on('typing_end', (data) => {
+    if (data.to && data.from) {
+      socket.to(`user_${data.to}`).emit('typing_end', { fromId: data.from });
+    }
+  });
+
   socket.on('disconnect', () => {
     for (const [userId, socketId] of connectedUsers.entries()) {
       if (socketId === socket.id) {
@@ -369,6 +381,7 @@ const userSchema = new mongoose.Schema({
   gender: { type: String, enum: ['male', 'female', 'prefer_not_to_say'], required: true },
   age: { type: Number, min: 18 },
   ageVerified: { type: Boolean, default: false },
+  avatarUrl: { type: String },
   xp: { type: Number, default: 0 },
   level: { type: Number, default: 1 },
   title: { type: String, default: 'Whisperer' },
@@ -785,6 +798,7 @@ app.post('/api/auth/signup', async (req, res) => {
         id: user._id,
         anonymousName: user.anonymousName,
         rarity: user.rarity,
+        avatarUrl: user.avatarUrl,
         gender: user.gender,
         xp: user.xp,
         level: user.level,
@@ -838,6 +852,7 @@ app.post('/api/auth/login', async (req, res) => {
         id: user._id,
         anonymousName: user.anonymousName,
         rarity: user.rarity,
+        avatarUrl: user.avatarUrl,
         gender: user.gender,
         xp: user.xp,
         level: user.level,
@@ -1220,6 +1235,28 @@ app.post('/api/confessions/:id/comments', authenticate, async (req, res) => {
 // USER ROUTES
 // =============================================================================
 
+// Upload Avatar
+app.post('/api/users/avatar', authenticate, async (req, res) => {
+  try {
+    const { imageData } = req.body;
+    if (!imageData) return res.status(400).json({ error: 'No image data provided' });
+
+    const result = await cloudinary.uploader.upload(imageData, {
+      folder: 'morpheus_echo/avatars',
+      public_id: `avatar_${req.user._id}`,
+      overwrite: true,
+      transformation: [{ width: 200, height: 200, crop: 'fill' }]
+    });
+
+    await User.findByIdAndUpdate(req.user._id, { avatarUrl: result.secure_url });
+
+    res.json({ avatarUrl: result.secure_url });
+  } catch (error) {
+    console.error('Avatar upload error:', error);
+    res.status(500).json({ error: 'Failed to upload avatar' });
+  }
+});
+
 // Get User Profile
 app.get('/api/users/:id', authenticate, async (req, res) => {
   try {
@@ -1237,6 +1274,7 @@ app.get('/api/users/:id', authenticate, async (req, res) => {
         id: user._id,
         anonymousName: user.anonymousName,
         rarity: user.rarity,
+        avatarUrl: user.avatarUrl,
         level: user.level,
         title: user.title,
         xp: user.xp,
@@ -1427,6 +1465,9 @@ app.get('/api/messages/:userId', authenticate, async (req, res) => {
       { read: true }
     );
     
+    // Notify sender that their messages were read
+    io.to(`user_${req.params.userId}`).emit('messages_read', { readBy: req.user._id });
+
     res.json(messages);
   } catch (error) {
     console.error('Get conversation error:', error);
@@ -1697,7 +1738,7 @@ app.get('/', (req, res) => {
       auth: ['/api/auth/signup', '/api/auth/login'],
       feed: ['/api/feed'],
       confessions: ['/api/confessions', '/api/confessions/:id', '/api/confessions/:id/react', '/api/confessions/:id/comments'],
-      users: ['/api/users/:id', '/api/users/:id/confessions', '/api/users/:id/follow'],
+      users: ['/api/users/:id', '/api/users/:id/confessions', '/api/users/:id/follow', '/api/users/avatar'],
       messages: ['/api/messages', '/api/messages/:userId'],
       notifications: ['/api/notifications', '/api/notifications/read-all'],
       radio: ['/api/radio', '/api/confessions/random'],
