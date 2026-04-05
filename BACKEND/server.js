@@ -360,6 +360,15 @@ io.on('connection', (socket) => {
 
       const sender = await User.findById(from);
       
+      // Save the persistent notification for the recipient
+      const notification = new Notification({
+        recipient: to,
+        type: 'message',
+        message: `New whisper from ${sender.anonymousName}`,
+        data: { from: from, messageId: message._id }
+      });
+      await notification.save();
+      
       io.to(`user_${to}`).emit('new_message', {
         from: sender.anonymousName,
         fromId: from,
@@ -553,77 +562,78 @@ function selectFromPool(pool) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+function getIdentityComponents(rarity) {
+  let colour, creature, location;
+  switch (rarity) {
+    case 'MYTHIC':
+      return {
+        colour: selectFromPool(IDENTITY_POOLS.MYTHIC_COLOURS),
+        creature: selectFromPool(IDENTITY_POOLS.MYTHIC_CREATURES).name,
+        location: selectFromPool(IDENTITY_POOLS.MYTHIC_LOCATIONS)
+      };
+    case 'LEGENDARY':
+      return {
+        colour: selectFromPool(IDENTITY_POOLS.LEGENDARY_COLOURS),
+        creature: selectFromPool(IDENTITY_POOLS.LEGENDARY_CREATURES).name,
+        location: selectFromPool(IDENTITY_POOLS.LEGENDARY_LOCATIONS)
+      };
+    case 'EXCLUSIVE':
+      return {
+        colour: selectFromPool(IDENTITY_POOLS.EXCLUSIVE_COLOURS),
+        creature: selectFromPool(IDENTITY_POOLS.EXCLUSIVE_CREATURES),
+        location: selectFromPool(IDENTITY_POOLS.EXCLUSIVE_LOCATIONS)
+      };
+    case 'RARE':
+      return {
+        colour: selectFromPool(IDENTITY_POOLS.RARE_COLOURS),
+        creature: selectFromPool(IDENTITY_POOLS.RARE_CREATURES),
+        location: selectFromPool(IDENTITY_POOLS.RARE_LOCATIONS)
+      };
+    case 'UNCOMMON':
+      return {
+        colour: selectFromPool(IDENTITY_POOLS.UNCOMMON_COLOURS),
+        creature: selectFromPool(IDENTITY_POOLS.UNCOMMON_CREATURES),
+        location: selectFromPool(IDENTITY_POOLS.UNCOMMON_LOCATIONS)
+      };
+    default:
+      return {
+        colour: selectFromPool(IDENTITY_POOLS.COMMON_COLOURS),
+        creature: selectFromPool(IDENTITY_POOLS.COMMON_CREATURES),
+        location: selectFromPool(IDENTITY_POOLS.COMMON_LOCATIONS)
+      };
+  }
+}
+
 async function generateUniqueIdentity() {
   const MAX_ATTEMPTS = 10;
   
+  // Standard Generation (Numbers 1-10)
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const rarity = generateRarity();
-    let colour, creature, location;
-    
-    switch (rarity) {
-      case 'MYTHIC':
-        colour = selectFromPool(IDENTITY_POOLS.MYTHIC_COLOURS);
-        creature = selectFromPool(IDENTITY_POOLS.MYTHIC_CREATURES).name;
-        location = selectFromPool(IDENTITY_POOLS.MYTHIC_LOCATIONS);
-        break;
-      case 'LEGENDARY':
-        colour = selectFromPool(IDENTITY_POOLS.LEGENDARY_COLOURS);
-        creature = selectFromPool(IDENTITY_POOLS.LEGENDARY_CREATURES).name;
-        location = selectFromPool(IDENTITY_POOLS.LEGENDARY_LOCATIONS);
-        break;
-      case 'EXCLUSIVE':
-        colour = selectFromPool(IDENTITY_POOLS.EXCLUSIVE_COLOURS);
-        creature = selectFromPool(IDENTITY_POOLS.EXCLUSIVE_CREATURES);
-        location = selectFromPool(IDENTITY_POOLS.EXCLUSIVE_LOCATIONS);
-        break;
-      case 'RARE':
-        colour = selectFromPool(IDENTITY_POOLS.RARE_COLOURS);
-        creature = selectFromPool(IDENTITY_POOLS.RARE_CREATURES);
-        location = selectFromPool(IDENTITY_POOLS.RARE_LOCATIONS);
-        break;
-      case 'UNCOMMON':
-        colour = selectFromPool(IDENTITY_POOLS.UNCOMMON_COLOURS);
-        creature = selectFromPool(IDENTITY_POOLS.UNCOMMON_CREATURES);
-        location = selectFromPool(IDENTITY_POOLS.UNCOMMON_LOCATIONS);
-        break;
-      default:
-        colour = selectFromPool(IDENTITY_POOLS.COMMON_COLOURS);
-        creature = selectFromPool(IDENTITY_POOLS.COMMON_CREATURES);
-        location = selectFromPool(IDENTITY_POOLS.COMMON_LOCATIONS);
-    }
-    
+    const { colour, creature, location } = getIdentityComponents(rarity);
     const number = Math.floor(Math.random() * 10) + 1;
-    const identity = `${colour} ${creature} of ${location} ${number}`;
     
+    const identity = `${colour} ${creature} of ${location} ${number}`;
     const existing = await User.findOne({ anonymousName: identity });
     if (!existing) {
       return { identity, rarity };
     }
   }
   
-  // Fallback: expand number range
-  const number = Math.floor(Math.random() * 100) + 1;
-  const rarity = generateRarity();
-  let colour, creature, location;
-  
-  switch (rarity) {
-    case 'MYTHIC':
-      colour = selectFromPool(IDENTITY_POOLS.MYTHIC_COLOURS);
-      creature = selectFromPool(IDENTITY_POOLS.MYTHIC_CREATURES).name;
-      location = selectFromPool(IDENTITY_POOLS.MYTHIC_LOCATIONS);
-      break;
-    case 'LEGENDARY':
-      colour = selectFromPool(IDENTITY_POOLS.LEGENDARY_COLOURS);
-      creature = selectFromPool(IDENTITY_POOLS.LEGENDARY_CREATURES).name;
-      location = selectFromPool(IDENTITY_POOLS.LEGENDARY_LOCATIONS);
-      break;
-    default:
-      colour = selectFromPool(IDENTITY_POOLS.COMMON_COLOURS);
-      creature = selectFromPool(IDENTITY_POOLS.COMMON_CREATURES);
-      location = selectFromPool(IDENTITY_POOLS.COMMON_LOCATIONS);
+  // Safe Fallback Generation (Numbers 1-1000)
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const rarity = generateRarity();
+    const { colour, creature, location } = getIdentityComponents(rarity);
+    const number = Math.floor(Math.random() * 1000) + 1;
+    
+    const identity = `${colour} ${creature} of ${location} ${number}`;
+    const existing = await User.findOne({ anonymousName: identity });
+    if (!existing) {
+      return { identity, rarity };
+    }
   }
   
-  return { identity: `${colour} ${creature} of ${location} ${number}`, rarity };
+  throw new Error('Failed to generate a unique identity after standard and fallback attempts');
 }
 
 // =============================================================================
@@ -631,7 +641,7 @@ async function generateUniqueIdentity() {
 // =============================================================================
 function calculateLevel(xp) {
   if (xp >= 29900) return { level: 300, title: 'Legend' };
-  if (xp >= 25000) return { level: Math.min(299, 250 + Math.floor((xp - 25000) / 100)), title: 'Phantom' };
+  if (xp >= 25000) return { level: Math.min(299, 251 + Math.floor((xp - 25000) / 100)), title: 'Phantom' };
   if (xp >= 15000) return { level: 151 + Math.floor((xp - 15000) / 100), title: 'Void Speaker' };
   if (xp >= 7500) return { level: 76 + Math.floor((xp - 7500) / 100), title: 'Confessor' };
   if (xp >= 2500) return { level: 26 + Math.floor((xp - 2500) / 100), title: 'Shadow Voice' };
@@ -674,15 +684,19 @@ async function awardXP(userId, amount, reason) {
 // HEAT SCORE CALCULATION
 // =============================================================================
 function calculateHeatScore(confession) {
-  const hoursSincePost = (Date.now() - confession.createdAt.getTime()) / (1000 * 60 * 60);
-  const timeDecay = Math.max(0, 1 - hoursSincePost / 48);
+  const hoursSincePost = Math.max(0, (Date.now() - confession.createdAt.getTime()) / (1000 * 60 * 60));
   
-  const totalReactions = Object.values(confession.reactions).reduce((sum, arr) => sum + arr.length, 0);
-  const velocityBonus = (totalReactions / Math.max(hoursSincePost, 1)) * 5;
+  // Weighted Engagement Score
+  const reactionScore = Object.values(confession.reactions).reduce((sum, arr) => sum + arr.length, 0) * 2;
+  const commentScore = (confession.commentCount || 0) * 3;
+  const viewScore = (confession.views || 0) * 0.1;
+  const totalEngagement = reactionScore + commentScore + viewScore;
   
-  const heatScore = (totalReactions * 2 + confession.views * 0.1 + confession.commentCount * 3) * (1 + timeDecay) + velocityBonus;
+  // Advanced Gravity Algorithm (Diminishing returns on virality + exponential time decay)
+  const gravity = 1.8;
+  const heatScore = Math.pow(totalEngagement + 1, 0.8) / Math.pow(hoursSincePost + 2, gravity);
   
-  return Math.round(heatScore);
+  return Math.round(heatScore * 1000);
 }
 
 // =============================================================================
@@ -727,6 +741,45 @@ function detectEmotion(text) {
   }
   
   return detectedEmotion;
+}
+
+// =============================================================================
+// ADVANCED AI CONTENT ANALYSIS (Machine Learning via Gemini)
+// =============================================================================
+async function analyzeContentAI(text) {
+  if (!text || text.trim() === '') {
+    return { flagged: false, hidden: false, reason: null, emotion: 'neutral' };
+  }
+
+  // Fallback to basic algorithms if API key is missing
+  if (!CONFIG.GEMINI_API_KEY) {
+    const mod = moderateContent(text);
+    return { ...mod, emotion: detectEmotion(text) };
+  }
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{
+          text: `Analyze this confession. Return ONLY a valid JSON object without markdown formatting.
+Format: {"flagged": boolean, "hidden": boolean, "reason": string or null, "emotion": string}
+Hiding rules: True ONLY if it contains severe real-world threats or illegal acts.
+Allowed emotions: 'sad', 'angry', 'love', 'funny', 'anxious', 'grateful', 'neutral'.
+Confession: "${text}"`
+        }] }]
+      })
+    });
+
+    const data = await response.json();
+    const responseText = data.candidates[0].content.parts[0].text.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(responseText);
+  } catch (error) {
+    console.error('AI fallback activated:', error);
+    const mod = moderateContent(text);
+    return { ...mod, emotion: detectEmotion(text) };
+  }
 }
 
 // =============================================================================
@@ -866,8 +919,10 @@ app.post('/api/auth/login', async (req, res) => {
 // Get Feed
 app.get('/api/feed', authenticate, async (req, res) => {
   try {
-    const { category, sort = 'trending', page = 1, limit = 10 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const { category, sort = 'trending' } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
     
     let query = { isHidden: false, isExpired: false };
     
@@ -889,13 +944,14 @@ app.get('/api/feed', authenticate, async (req, res) => {
       .populate('author', 'anonymousName rarity level title')
       .sort(sortOption)
       .skip(skip)
-      .limit(parseInt(limit))
+      .limit(limit)
       .lean();
     
     // Update heat scores
     for (const confession of confessions) {
       const newHeatScore = calculateHeatScore(confession);
-      if (newHeatScore !== confession.heatScore) {
+      // Only write to DB if the score changed significantly (>5) to prevent massive write loads
+      if (Math.abs(newHeatScore - (confession.heatScore || 0)) > 5) {
         await Confession.findByIdAndUpdate(confession._id, { heatScore: newHeatScore });
         confession.heatScore = newHeatScore;
       }
@@ -906,10 +962,10 @@ app.get('/api/feed', authenticate, async (req, res) => {
     res.json({
       confessions,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total,
-        pages: Math.ceil(total / parseInt(limit))
+        pages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
@@ -939,12 +995,11 @@ app.post('/api/confessions', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Audio URL required for voice confession' });
     }
     
-    // Content moderation
+    // Advanced AI Content Analysis & Moderation
     const textToModerate = type === 'text' ? content : '';
-    const moderation = moderateContent(textToModerate);
-    
-    // Detect emotion
-    const emotion = detectEmotion(textToModerate || '');
+    const aiAnalysis = await analyzeContentAI(textToModerate);
+    const moderation = { flagged: aiAnalysis.flagged, hidden: aiAnalysis.hidden };
+    const emotion = aiAnalysis.emotion;
     
     // Calculate expiry
     let expiryDate = null;
@@ -1054,7 +1109,7 @@ app.post('/api/confessions/:id/react', authenticate, async (req, res) => {
     }
     
     const reactionArray = confession.reactions[reactionType];
-    const userIndex = reactionArray.indexOf(req.user._id);
+    const userIndex = reactionArray.findIndex(id => id.toString() === req.user._id.toString());
     
     let action;
     if (userIndex > -1) {
@@ -1151,6 +1206,11 @@ app.post('/api/confessions/:id/comments', authenticate, async (req, res) => {
     confession.commentCount += 1;
     await confession.save();
     
+    // If this is a reply, update the parent comment's replies array
+    if (parentComment) {
+      await Comment.findByIdAndUpdate(parentComment, { $push: { replies: comment._id } });
+    }
+
     // Award XP
     await awardXP(confession.author, XP_REWARDS.RECEIVE_COMMENT, 'RECEIVE_COMMENT');
     
@@ -1197,7 +1257,7 @@ app.get('/api/users/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    const isFollowing = req.user.following.includes(user._id);
+    const isFollowing = req.user.following.some(id => id.toString() === user._id.toString());
     
     res.json({
       user: {
@@ -1226,8 +1286,9 @@ app.get('/api/users/:id', authenticate, async (req, res) => {
 // Get User Confessions
 app.get('/api/users/:id/confessions', authenticate, async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
     
     const confessions = await Confession.find({ 
       author: req.params.id, 
@@ -1236,7 +1297,7 @@ app.get('/api/users/:id/confessions', authenticate, async (req, res) => {
       .populate('author', 'anonymousName rarity level title')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limit);
     
     const total = await Confession.countDocuments({ 
       author: req.params.id, 
@@ -1246,10 +1307,10 @@ app.get('/api/users/:id/confessions', authenticate, async (req, res) => {
     res.json({
       confessions,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page,
+        limit,
         total,
-        pages: Math.ceil(total / parseInt(limit))
+        pages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
@@ -1270,7 +1331,7 @@ app.post('/api/users/:id/follow', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    const isFollowing = req.user.following.includes(req.params.id);
+    const isFollowing = req.user.following.some(id => id.toString() === req.params.id);
     
     if (isFollowing) {
       // Unfollow
@@ -1285,10 +1346,10 @@ app.post('/api/users/:id/follow', authenticate, async (req, res) => {
     } else {
       // Follow
       await User.findByIdAndUpdate(req.user._id, {
-        $push: { following: req.params.id }
+        $addToSet: { following: req.params.id }
       });
       await User.findByIdAndUpdate(req.params.id, {
-        $push: { followers: req.user._id }
+        $addToSet: { followers: req.user._id }
       });
       
       // Send notification
@@ -1324,7 +1385,8 @@ app.get('/api/messages', authenticate, async (req, res) => {
     })
       .populate('sender', 'anonymousName rarity')
       .populate('recipient', 'anonymousName rarity')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .limit(1000); // Prevents catastrophic memory limit exceptions for heavy users
     
     // Group by conversation partner
     const conversations = new Map();

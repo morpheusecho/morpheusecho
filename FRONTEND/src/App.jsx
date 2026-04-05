@@ -1,151 +1,7 @@
-import React, { useState, useEffect, useRef, useContext, createContext } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, Navigate, useLocation } from 'react-router-dom';
-
-// =============================================================================
-// IDENTITY POOLS - YOUR EXACT SCHEME
-// =============================================================================
-
-// 🦁 CREATURES (100+ from your list)
-const CREATURES = {
-  NORMAL: [
-    'Lion', 'Tiger', 'Elephant', 'Dog', 'Cat', 'Horse', 'Cow', 'Buffalo', 'Goat', 'Sheep',
-    'Monkey', 'Gorilla', 'Deer', 'Rabbit', 'Fox', 'Wolf', 'Bear', 'Zebra', 'Giraffe', 'Kangaroo',
-    'Panda', 'Leopard', 'Cheetah', 'Hyena', 'Camel', 'Donkey', 'Pig', 'Rat', 'Squirrel', 'Otter',
-    'Dolphin', 'Whale', 'Shark', 'Octopus', 'Crocodile', 'Alligator', 'Snake', 'Lizard', 'Frog', 'Turtle',
-    'Eagle', 'Owl', 'Parrot', 'Peacock', 'Penguin', 'Flamingo', 'Crow', 'Pigeon', 'Sparrow', 'Chicken'
-  ],
-  MYTHICAL: [
-    'Dragon', 'Phoenix', 'Unicorn', 'Griffin', 'Pegasus', 'Hydra', 'Cerberus', 'Minotaur', 'Cyclops', 'Mermaid'
-  ],
-  HORROR: [
-    'Vampire', 'Werewolf', 'Zombie', 'Wendigo', 'Banshee', 'Skinwalker', 'Chupacabra', 'Mothman', 'Slenderman', 'Doppelgänger'
-  ],
-  CRYPTID: [
-    'Yeti', 'Bigfoot', 'Loch Ness Monster', 'Kraken', 'Megalodon', 'Basilisk', 'Thunderbird', 'Jersey Devil', 'El Chupacabra', 'Leviathan'
-  ],
-  DARK_LEGENDS: [
-    'Black Shuck', 'Nuckelavee', 'Aswang', 'Pontianak', 'Dullahan', 'Manananggal', 'Tikbalang', 'Bakunawa', 'Sigbin', 'Tiyanak'
-  ],
-  ASIAN_MYTH: [
-    'Kappa', 'Jorōgumo', 'Ahool', 'Ammit', 'Qilin', 'Oni', 'Tengu', 'Kitsune', 'Tanuki', 'Nue'
-  ],
-  SUPER_RARE: [
-    'Loveland Frogman', 'Flatwoods Monster', 'Enfield Horror', 'Mokele-Mbembe', 'Mapinguari',
-    'Jersey Devil', 'Mothman', 'Beast of Bodmin', 'Dover Demon', 'Mongolian Death Worm'
-  ]
-};
-
-const ALL_CREATURES = [
-  ...CREATURES.NORMAL,
-  ...CREATURES.MYTHICAL,
-  ...CREATURES.HORROR,
-  ...CREATURES.CRYPTID,
-  ...CREATURES.DARK_LEGENDS,
-  ...CREATURES.ASIAN_MYTH,
-  ...CREATURES.SUPER_RARE
-];
-
-// 🏙️ CITIES (100 from your list)
-const CITIES = {
-  FAMOUS: [
-    'New York City', 'Paris', 'London', 'Tokyo', 'Dubai', 'Los Angeles', 'Chicago', 'Toronto', 'Berlin', 'Madrid',
-    'Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Kolkata', 'Hyderabad', 'Pune', 'Jaipur', 'Singapore', 'Bangkok',
-    'Sydney', 'Melbourne', 'Beijing', 'Shanghai', 'Seoul', 'Hong Kong', 'Kuala Lumpur', 'Jakarta', 'Istanbul', 'Moscow',
-    'Rio de Janeiro', 'São Paulo', 'Mexico City', 'Buenos Aires', 'Lima', 'Cape Town', 'Johannesburg', 'Cairo', 'Athens', 'Rome',
-    'Barcelona', 'Amsterdam', 'Vienna', 'Prague', 'Budapest', 'Warsaw', 'Zurich', 'Stockholm', 'Oslo', 'Helsinki'
-  ],
-  ANCIENT: [
-    'Machu Picchu', 'Petra', 'Pompeii', 'Angkor', 'Babylon', 'Troy', 'Teotihuacan', 'Persepolis', 'Great Zimbabwe', 'Nalanda',
-    'Pripyat', 'Varosha', 'Oradour-sur-Glane', 'Kolmanskop', 'Bodie', 'Hashima Island', 'Centralia', 'Craco', 'Humberstone', 'Pyramiden',
-    'Shani Shingnapur', 'Coober Pedy', 'Aogashima', 'Longyearbyen', 'Whittier', 'Chefchaouen', 'Venice', 'Hallstatt', 'Monowi', 'Setenil de las Bodegas',
-    'Supai', 'Ittoqqortoormiit', 'Timbuktu', 'Lhasa', 'Ushuaia', 'Reykjavik', 'Svalbard', 'Easter Island', 'Socotra', 'Ghadames',
-    'Hampi', 'Varanasi', 'Alexandria', 'Cusco', 'Fez', 'Samarkand', 'Bukhara', 'Kashgar', 'Merv', 'Taxila'
-  ]
-};
-
-const ALL_CITIES = [...CITIES.FAMOUS, ...CITIES.ANCIENT];
-
-// 🎨 COLORS (30 from your list)
-const COLORS = {
-  COMMON: [
-    'Red', 'Blue', 'Green', 'Yellow', 'Black', 'White', 'Orange', 'Purple', 'Pink', 'Brown',
-    'Grey', 'Cyan', 'Magenta', 'Lime', 'Navy Blue'
-  ],
-  RARE: [
-    'Vantablack', 'Ultramarine', 'Tyrian Purple', 'Vermilion', 'Indigo',
-    'Cerulean', 'Periwinkle', 'Chartreuse', 'Amaranth', 'Saffron',
-    'Malachite', 'Ochre', 'Aubergine', 'Teal', 'Crimson'
-  ]
-};
-
-const ALL_COLORS = [...COLORS.COMMON, ...COLORS.RARE];
-
-// =============================================================================
-// RARITY GENERATION (Your probability scheme)
-// =============================================================================
-function generateRarity() {
-  const roll = Math.random() * 100;
-  if (roll < 0.5) return 'MYTHIC';
-  if (roll < 2) return 'LEGENDARY';
-  if (roll < 5) return 'EXCLUSIVE';
-  if (roll < 15) return 'RARE';
-  if (roll < 40) return 'UNCOMMON';
-  return 'COMMON';
-}
-
-function getCreatureByRarity(rarity) {
-  switch(rarity) {
-    case 'MYTHIC':
-      return [...CREATURES.HORROR, ...CREATURES.DARK_LEGENDS, ...CREATURES.SUPER_RARE][Math.floor(Math.random() * 20)];
-    case 'LEGENDARY':
-      return [...CREATURES.MYTHICAL, ...CREATURES.CRYPTID][Math.floor(Math.random() * 20)];
-    case 'EXCLUSIVE':
-      return CREATURES.ASIAN_MYTH[Math.floor(Math.random() * CREATURES.ASIAN_MYTH.length)];
-    case 'RARE':
-      return CREATURES.CRYPTID.slice(0, 5)[Math.floor(Math.random() * 5)];
-    case 'UNCOMMON':
-      return CREATURES.NORMAL.slice(30, 50)[Math.floor(Math.random() * 20)];
-    default:
-      return CREATURES.NORMAL[Math.floor(Math.random() * 50)];
-  }
-}
-
-function getCityByRarity(rarity) {
-  switch(rarity) {
-    case 'MYTHIC':
-    case 'LEGENDARY':
-      return CITIES.ANCIENT[Math.floor(Math.random() * CITIES.ANCIENT.length)];
-    case 'EXCLUSIVE':
-      return CITIES.ANCIENT.slice(20, 40)[Math.floor(Math.random() * 20)];
-    case 'RARE':
-      return CITIES.ANCIENT.slice(0, 20)[Math.floor(Math.random() * 20)];
-    default:
-      return CITIES.FAMOUS[Math.floor(Math.random() * CITIES.FAMOUS.length)];
-  }
-}
-
-function getColorByRarity(rarity) {
-  switch(rarity) {
-    case 'MYTHIC':
-    case 'LEGENDARY':
-    case 'EXCLUSIVE':
-      return COLORS.RARE[Math.floor(Math.random() * COLORS.RARE.length)];
-    default:
-      return COLORS.COMMON[Math.floor(Math.random() * COLORS.COMMON.length)];
-  }
-}
-
-async function generateUniqueIdentity() {
-  const rarity = generateRarity();
-  const color = getColorByRarity(rarity);
-  const creature = getCreatureByRarity(rarity);
-  const city = getCityByRarity(rarity);
-  const number = Math.floor(Math.random() * 999) + 1;
-  
-  const identity = `${color} ${creature} of ${city} ${number}`;
-  
-  return { identity, rarity };
-}
+import React, { useState, useEffect, useRef, useContext, createContext, useCallback, useMemo } from 'react';
+import { Routes, Route, Link, useNavigate, useParams, Navigate, useLocation } from 'react-router-dom';
+import { io } from 'socket.io-client';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // =============================================================================
 // MOCK DATA FOR DEMO
@@ -353,6 +209,8 @@ const getCategoryClass = (categoryId) => `cat-${categoryId}`;
 // =============================================================================
 // AUTH CONTEXT
 // =============================================================================
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 const AuthContext = createContext(null);
 
 const AuthProvider = ({ children }) => {
@@ -362,47 +220,61 @@ const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const storedUser = localStorage.getItem('morpheus_user');
-    if (storedUser) {
+    const token = localStorage.getItem('morpheus_token');
+    
+    if (storedUser && token) {
       setUser(JSON.parse(storedUser));
+    } else {
+      localStorage.removeItem('morpheus_user');
+      localStorage.removeItem('morpheus_token');
     }
     setLoading(false);
   }, []);
 
   const login = async (username, password) => {
-    if (username && password) {
-      localStorage.setItem('morpheus_user', JSON.stringify(MOCK_USER));
-      setUser(MOCK_USER);
-      return { success: true };
+    try {
+      const response = await fetch(`${SOCKET_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        localStorage.setItem('morpheus_token', data.token);
+        localStorage.setItem('morpheus_user', JSON.stringify(data.user));
+        setUser(data.user);
+        return { success: true };
+      }
+      return { success: false, error: data.error || 'Login failed' };
+    } catch (error) {
+      return { success: false, error: 'Network error connecting to server' };
     }
-    return { success: false, error: 'Invalid credentials' };
   };
 
   const signup = async (userData) => {
-    const { identity, rarity } = await generateUniqueIdentity();
-    
-    const newUser = { 
-      _id: 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11),
-      anonymousName: identity,
-      rarity: rarity,
-      gender: userData.gender,
-      xp: 0,
-      level: 1,
-      title: 'Whisperer',
-      streak: 0,
-      badges: rarity === 'LEGENDARY' || rarity === 'MYTHIC' ? ['mythical'] : [],
-      totalConfessions: 0,
-      totalReactions: 0,
-      followers: 0,
-      following: 0,
-      isFollowing: false
-    };
-    
-    localStorage.setItem('morpheus_user', JSON.stringify(newUser));
-    setUser(newUser);
-    return { success: true, user: newUser };
+    try {
+      const response = await fetch(`${SOCKET_URL}/api/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        localStorage.setItem('morpheus_token', data.token);
+        localStorage.setItem('morpheus_user', JSON.stringify(data.user));
+        setUser(data.user);
+        return { success: true, user: data.user };
+      }
+      return { success: false, error: data.error || 'Signup failed' };
+    } catch (error) {
+      return { success: false, error: 'Network error connecting to server' };
+    }
   };
 
   const logout = () => {
+    localStorage.removeItem('morpheus_token');
     localStorage.removeItem('morpheus_user');
     setUser(null);
     navigate('/login');
@@ -418,11 +290,58 @@ const AuthProvider = ({ children }) => {
 const useAuth = () => useContext(AuthContext);
 
 // =============================================================================
+// SOCKET CONTEXT
+// =============================================================================
+const SocketContext = createContext(null);
+
+const SocketProvider = ({ children }) => {
+  const { user } = useAuth();
+  const [socket, setSocket] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const currentUserId = user?.id || user?._id;
+    if (user && currentUserId) {
+      // Fetch initial unread count on load
+      const token = localStorage.getItem('morpheus_token');
+      fetch(`${SOCKET_URL}/api/notifications`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => setUnreadCount(data.unreadCount || 0))
+        .catch(err => console.error('Failed to fetch unread count:', err));
+
+      const newSocket = io(SOCKET_URL);
+      setSocket(newSocket);
+
+      newSocket.on('connect', () => {
+        console.log('Connected to real-time Echo server');
+        newSocket.emit('authenticate', { userId: currentUserId });
+      });
+      
+      // Global listeners to increment the badge in real-time
+      const incUnread = () => setUnreadCount(prev => prev + 1);
+      newSocket.on('notification', incUnread);
+      newSocket.on('reaction_notification', incUnread);
+      newSocket.on('comment_notification', incUnread);
+      newSocket.on('follow_notification', incUnread);
+      newSocket.on('level_up', incUnread);
+
+      return () => newSocket.disconnect();
+    }
+  }, [user]);
+
+  return <SocketContext.Provider value={{ socket, unreadCount, setUnreadCount }}>{children}</SocketContext.Provider>;
+};
+
+const useSocket = () => useContext(SocketContext);
+
+// =============================================================================
 // PROTECTED ROUTE
 // =============================================================================
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f]"><div className="text-[#7c3aed]">Loading...</div></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-transparent"><div className="text-[var(--accent-primary)]">Loading...</div></div>;
   if (!user) return <Navigate to="/login" replace />;
   return children;
 };
@@ -433,13 +352,24 @@ const ProtectedRoute = ({ children }) => {
 const FollowButton = ({ userId, initialFollowing, onFollowChange }) => {
   const [isFollowing, setIsFollowing] = useState(initialFollowing);
   const [loading, setLoading] = useState(false);
+  const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const handleFollow = async (e) => {
     e.stopPropagation();
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setLoading(true);
-    setTimeout(() => {
-      setIsFollowing(!isFollowing);
-      if (onFollowChange) onFollowChange(!isFollowing);
+    timeoutRef.current = setTimeout(() => {
+      setIsFollowing(prev => {
+        const nextState = !prev;
+        if (onFollowChange) onFollowChange(nextState);
+        return nextState;
+      });
       setLoading(false);
     }, 300);
   };
@@ -494,11 +424,27 @@ const ConfessionCard = ({ confession }) => {
   const [isRevealed, setIsRevealed] = useState(false);
   const [holdProgress, setHoldProgress] = useState(0);
   const [localReactions, setLocalReactions] = useState(confession.reactions);
+  const [isPlaying, setIsPlaying] = useState(false);
   const progressInterval = useRef(null);
   const holdTimeoutRef = useRef(null);
+  const audioRef = useRef(null);
+  const waveformHeights = useMemo(() => Array.from({ length: 30 }).map(() => Math.random() * 30 + 10), [confession._id]);
+
+  useEffect(() => {
+    return () => {
+      if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
+      if (progressInterval.current) clearInterval(progressInterval.current);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   const handleHoldStart = () => {
     if (isRevealed) return;
+    if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
+    if (progressInterval.current) clearInterval(progressInterval.current);
     
     holdTimeoutRef.current = setTimeout(() => {
       const interval = setInterval(() => {
@@ -527,24 +473,66 @@ const ConfessionCard = ({ confession }) => {
     setHoldProgress(0);
   };
 
-  const handleReaction = (reactionType, e) => {
+  const handleReaction = async (reactionType, e) => {
     e.stopPropagation();
+    if (!user) return;
+    const currentUserId = user?.id || user?._id;
+    
+    // Optimistic UI update for instant feedback
     setLocalReactions(prev => {
-      const hasReacted = prev[reactionType]?.includes(user?._id);
+      const hasReacted = prev[reactionType]?.includes(currentUserId);
       return {
         ...prev,
         [reactionType]: hasReacted
-          ? prev[reactionType].filter(id => id !== user?._id)
-          : [...(prev[reactionType] || []), user?._id]
+          ? prev[reactionType].filter(id => id !== currentUserId)
+          : [...(prev[reactionType] || []), currentUserId]
       };
     });
+
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const response = await fetch(`${SOCKET_URL}/api/confessions/${confession._id}/react`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ reactionType })
+      });
+      
+      if (!response.ok) throw new Error('Failed to record reaction');
+    } catch (err) {
+      console.error('Reaction API error:', err);
+      // Optional: Revert the optimistic update here if the request fails
+    }
   };
 
-  const hasReacted = (type) => localReactions[type]?.includes(user?._id);
+  const hasReacted = (type) => localReactions[type]?.includes(user?.id || user?._id);
   const reactionCount = (type) => localReactions[type]?.length || 0;
 
+  const toggleAudio = (e) => {
+    e.stopPropagation();
+    if (!confession.audioUrl) return;
+    if (!audioRef.current) {
+      audioRef.current = new Audio(confession.audioUrl);
+      audioRef.current.onended = () => setIsPlaying(false);
+    }
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
   return (
-    <div className={`confession-card ${getRarityFrameClass(confession.author?.rarity)}`}>
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration: 0.4 }}
+      className={`confession-card ${getRarityFrameClass(confession.author?.rarity)}`}
+    >
       <div className="card-header">
         <AuthorOrb rarity={confession.author?.rarity} size={40} />
         <div className="author-info">
@@ -584,12 +572,12 @@ const ConfessionCard = ({ confession }) => {
             <p className="card-content">{confession.content}</p>
           ) : (
             <div className="audio-player">
-              <button className="play-btn" onClick={(e) => e.stopPropagation()}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <button className="play-btn" onClick={toggleAudio}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{isPlaying ? <><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></> : <polygon points="5 3 19 12 5 21 5 3"/>}</svg>
               </button>
               <div className="waveform">
-                {Array.from({ length: 30 }).map((_, i) => (
-                  <div key={i} className="waveform-bar" style={{ height: `${Math.random() * 30 + 10}px` }}></div>
+                {waveformHeights.map((height, i) => (
+                  <div key={i} className="waveform-bar" style={{ height: `${height}px` }}></div>
                 ))}
               </div>
               <span className="audio-duration">{Math.floor(confession.audioDuration / 60)}:{String(Math.floor(confession.audioDuration % 60)).padStart(2, '0')}</span>
@@ -635,7 +623,7 @@ const ConfessionCard = ({ confession }) => {
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -644,8 +632,7 @@ const ConfessionCard = ({ confession }) => {
 // =============================================================================
 const BottomNav = () => {
   const location = useLocation();
-  const unreadCount = 2;
-
+  const { unreadCount } = useSocket() || { unreadCount: 0 };
   const navItems = [
     { path: '/', icon: 'home', label: 'Feed' },
     { path: '/create', icon: 'edit', label: 'Confess' },
@@ -681,7 +668,7 @@ const BottomNav = () => {
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const unreadCount = 2;
+  const { unreadCount } = useSocket() || { unreadCount: 0 };
 
   const navItems = [
     { path: '/', icon: 'home', label: 'Feed' },
@@ -695,12 +682,12 @@ const Sidebar = () => {
   return (
     <aside className="sidebar-nav">
       <div className="sidebar-logo">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#7c3aed] to-[#a855f7] flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--accent-primary)] to-[var(--accent-secondary)] flex items-center justify-center shadow-md">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
         <div>
-          <h1 className="font-display text-lg font-bold text-white">Morpheus</h1>
-          <p className="text-xs text-gray-400">Echo</p>
+          <h1 className="font-display text-lg font-bold text-[var(--text-primary)]">Morpheus</h1>
+          <p className="text-xs text-[var(--text-muted)]">Echo</p>
         </div>
       </div>
 
@@ -721,8 +708,8 @@ const Sidebar = () => {
         ))}
       </nav>
 
-      <div className="pt-4 border-t border-[#7c3aed]/10">
-        <button onClick={logout} className="sidebar-item w-full text-left text-red-400 hover:text-red-300">
+      <div className="pt-4 border-t border-gray-200">
+        <button onClick={logout} className="sidebar-item w-full text-left text-red-500 hover:text-red-600">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           <span>Logout</span>
         </button>
@@ -749,7 +736,10 @@ const LoginPage = () => {
 
     if (isLogin) {
       const result = await login(formData.username, formData.password);
-      if (result.success) navigate('/');
+      if (result.success) {
+        navigate('/');
+        return;
+      }
       else setError(result.error);
     } else {
       if (!formData.ageVerified) {
@@ -758,7 +748,10 @@ const LoginPage = () => {
         return;
       }
       const result = await signup({ ...formData, age: parseInt(formData.age) });
-      if (result.success) navigate('/reveal', { state: { user: result.user } });
+      if (result.success) {
+        navigate('/reveal', { state: { user: result.user } });
+        return;
+      }
       else setError(result.error);
     }
     setLoading(false);
@@ -766,13 +759,18 @@ const LoginPage = () => {
 
   return (
     <div className="auth-container">
-      <div className="auth-card">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4 }}
+        className="auth-card"
+      >
         <div className="auth-logo">
           <div className="auth-logo-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
-          <h1 className="font-display text-2xl font-bold text-white">Morpheus Echo</h1>
-          <p className="text-gray-400 text-sm italic">"Whisper your truth. Echo your soul."</p>
+        <h1 className="font-display text-2xl font-bold text-[var(--text-primary)]">Morpheus Echo</h1>
+        <p className="text-[var(--text-muted)] text-sm italic">"Whisper your truth. Echo your soul."</p>
         </div>
 
         <div className="auth-tabs">
@@ -812,7 +810,7 @@ const LoginPage = () => {
               <div className="form-group">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={formData.ageVerified} onChange={(e) => setFormData({ ...formData, ageVerified: e.target.checked })} required />
-                  <span className="text-sm text-gray-400">I confirm I am 18 years or older</span>
+                  <span className="text-sm text-[var(--text-secondary)]">I confirm I am 18 years or older</span>
                 </label>
               </div>
             </>
@@ -822,7 +820,7 @@ const LoginPage = () => {
             {loading ? 'Loading...' : isLogin ? 'Sign In' : 'Create Identity'}
           </button>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 };
@@ -846,7 +844,17 @@ const IdentityRevealPage = () => {
     }
   }, [isRevealed, navigate]);
 
+  useEffect(() => {
+    return () => {
+      if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
+      if (progressInterval.current) clearInterval(progressInterval.current);
+    };
+  }, []);
+
   const handleHoldStart = () => {
+    if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
+    if (progressInterval.current) clearInterval(progressInterval.current);
+    
     holdTimeoutRef.current = setTimeout(() => {
       const interval = setInterval(() => {
         setHoldProgress(prev => {
@@ -870,7 +878,11 @@ const IdentityRevealPage = () => {
   };
 
   return (
-    <div className="identity-reveal-screen">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="identity-reveal-screen"
+    >
       <div className="text-center">
         {!isRevealed ? (
           <>
@@ -906,11 +918,11 @@ const IdentityRevealPage = () => {
               <p className="identity-rarity" style={{ color: getRarityColor(user.rarity) }}>{user.rarity}</p>
               <p className="identity-quote">"Your secret name. Your truth.<br />Guard it well."</p>
             </div>
-            <p className="mt-8 text-gray-400">Entering the Echo...</p>
+            <p className="mt-8 text-[var(--text-muted)]">Entering the Echo...</p>
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -918,34 +930,46 @@ const IdentityRevealPage = () => {
 // HOME FEED PAGE
 // =============================================================================
 const HomePage = () => {
-  const [confessions] = useState(MOCK_CONFESSIONS);
+  const [confessions, setConfessions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('trending');
 
-  const filteredConfessions = selectedCategory === 'all' 
-    ? confessions 
-    : confessions.filter(c => c.categories.includes(selectedCategory));
-
-  const sortedConfessions = [...filteredConfessions].sort((a, b) => {
-    if (sortBy === 'new') return new Date(b.createdAt) - new Date(a.createdAt);
-    if (sortBy === 'trending') return (b.views || 0) - (a.views || 0);
-    return 0;
-  });
+  useEffect(() => {
+    const fetchFeed = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem('morpheus_token'); // Make sure your AuthContext saves this during login
+        const response = await fetch(`${SOCKET_URL}/api/feed?category=${selectedCategory}&sort=${sortBy}&page=1&limit=20`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Failed to fetch feed');
+        const data = await response.json();
+        setConfessions(data.confessions);
+      } catch (err) {
+        console.error('Feed error:', err);
+        setConfessions(MOCK_CONFESSIONS); // Fallback to mock data if backend fails
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchFeed();
+  }, [selectedCategory, sortBy]);
 
   return (
     <div className="min-h-screen pb-20 md:pb-0">
-      <div className="sticky top-0 z-10 bg-[#0a0a0f]/95 backdrop-blur-lg border-b border-[#7c3aed]/10">
+      <div className="sticky top-0 z-10 bg-[var(--bg-secondary)] backdrop-blur-xl border-b border-[rgba(255,255,255,0.6)]">
         <div className="p-4">
           <div className="flex gap-2 overflow-x-auto hide-scrollbar mb-4">
-            <button onClick={() => setSelectedCategory('all')} className={`category-pill whitespace-nowrap ${selectedCategory === 'all' ? 'bg-[#7c3aed] text-white' : 'bg-[#1a1a2e] text-gray-400'}`}>All</button>
+            <button onClick={() => setSelectedCategory('all')} className={`category-pill whitespace-nowrap ${selectedCategory === 'all' ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border-[rgba(255,255,255,0.6)] text-[var(--text-secondary)] backdrop-blur-md'}`}>All</button>
             {CATEGORIES.map(cat => (
-              <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`category-pill whitespace-nowrap ${selectedCategory === cat.id ? 'ring-2 ring-white' : ''}`} style={{ background: `${cat.color}20`, color: cat.color, border: `1px solid ${cat.color}40` }}>{cat.name}</button>
+              <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`category-pill whitespace-nowrap ${selectedCategory === cat.id ? 'ring-2 ring-white shadow-sm' : 'backdrop-blur-md'}`} style={{ background: `${cat.color}20`, color: cat.color, border: `1px solid ${cat.color}40` }}>{cat.name}</button>
             ))}
           </div>
           
           <div className="flex gap-2">
             {['trending', 'new', 'following'].map(sort => (
-              <button key={sort} onClick={() => setSortBy(sort)} className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${sortBy === sort ? 'bg-[#7c3aed] text-white' : 'bg-[#1a1a2e] text-gray-400 hover:bg-[#2a2a3e]'}`}>
+              <button key={sort} onClick={() => setSortBy(sort)} className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${sortBy === sort ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border-[rgba(255,255,255,0.6)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] backdrop-blur-md'}`}>
                 {sort.charAt(0).toUpperCase() + sort.slice(1)}
               </button>
             ))}
@@ -955,9 +979,15 @@ const HomePage = () => {
 
       <div className="p-4">
         <div className="space-y-4">
-          {sortedConfessions.map(confession => (
-            <ConfessionCard key={confession._id} confession={confession} />
-          ))}
+          {loading ? (
+            <div className="text-center text-[var(--text-muted)] py-12 animate-pulse">Listening to the Echo...</div>
+          ) : confessions.length > 0 ? (
+            confessions.map(confession => (
+              <ConfessionCard key={confession._id} confession={confession} />
+            ))
+          ) : (
+            <div className="text-center text-[var(--text-muted)] py-12">No whispers found here.</div>
+          )}
         </div>
       </div>
     </div>
@@ -981,21 +1011,61 @@ const CreatePage = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const timerRef = useRef(null);
+  const submitTimeoutRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const waveformHeights = useMemo(() => Array.from({ length: 20 }).map(() => Math.random() * 30 + 10), [audioBlob]);
 
-  const startRecording = () => {
-    setIsRecording(true);
-    let time = 0;
-    timerRef.current = setInterval(() => {
-      time += 1;
-      setRecordingTime(time);
-    }, 1000);
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (submitTimeoutRef.current) clearTimeout(submitTimeoutRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(blob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      
+      if (timerRef.current) clearInterval(timerRef.current);
+      let time = 0;
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => {
+        time += 1;
+        setRecordingTime(time);
+        if (time >= 100) stopRecording(); // Max 100 seconds
+      }, 1000);
+    } catch (err) {
+      console.error("Mic access denied:", err);
+      alert("Microphone access is required to record a whisper.");
+    }
   };
 
   const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
     setIsRecording(false);
     clearInterval(timerRef.current);
-    // In a real app, you'd capture actual audio data here
-    setAudioBlob(new Blob(['dummy audio data'], { type: 'audio/webm' }));
   };
 
   const toggleCategory = (catId) => {
@@ -1004,14 +1074,67 @@ const CreatePage = () => {
     );
   };
 
+  const blobToBase64 = (blob) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
   const handleSubmit = async () => {
     if (selectedCategories.length === 0) { alert('Select at least one category'); return; }
     setLoading(true);
-    setTimeout(() => {
-      alert('Your whisper has been shared! (Demo Mode)');
+    
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      let finalAudioUrl = null;
+      let finalAudioDuration = null;
+
+      // If it's a voice confession, upload it to Cloudinary through the backend first
+      if (type === 'voice' && audioBlob) {
+        const base64Audio = await blobToBase64(audioBlob);
+        const uploadRes = await fetch(`${SOCKET_URL}/api/upload/audio`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ audioData: base64Audio })
+        });
+        
+        if (!uploadRes.ok) throw new Error('Audio upload failed');
+        const uploadData = await uploadRes.json();
+        finalAudioUrl = uploadData.url;
+        finalAudioDuration = uploadData.duration;
+      }
+
+      const confessionData = {
+        type,
+        content: type === 'text' ? content : null,
+        audioUrl: finalAudioUrl,
+        audioDuration: type === 'voice' ? (finalAudioDuration || recordingTime) : null,
+        voiceEffect,
+        ambientSound,
+        categories: selectedCategories,
+        mood: selectedMood,
+        expiry
+      };
+
+      // Save the confession in the database
+      const res = await fetch(`${SOCKET_URL}/api/confessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(confessionData)
+      });
+
+      if (!res.ok) throw new Error('Failed to post confession');
+      
       navigate('/');
+    } catch (error) {
+      console.error('Submit error:', error);
+      alert('Failed to share whisper. Please try again.');
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const wordCount = content.trim().split(/\s+/).filter(w => w).length;
@@ -1020,59 +1143,59 @@ const CreatePage = () => {
   return (
     <div className="min-h-screen pb-24 md:pb-8">
       <div className="p-4">
-        <h1 className="font-display text-2xl mb-6 text-white">Share Your Whisper</h1>
+        <h1 className="font-display text-2xl mb-6 text-[var(--text-primary)]">Share Your Whisper</h1>
 
         <div className="flex gap-4 mb-6">
-          <button onClick={() => setType('text')} className={`flex-1 py-4 rounded-xl border-2 transition-all ${type === 'text' ? 'border-[#7c3aed] bg-[#7c3aed]/10' : 'border-[#1a1a2e] bg-[#1a1a2e]'}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2 text-gray-300"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
-            <span className="text-sm text-gray-300">Text</span>
+          <button onClick={() => setType('text')} className={`flex-1 py-4 rounded-xl border transition-all backdrop-blur-md ${type === 'text' ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 shadow-sm' : 'border-[rgba(255,255,255,0.8)] bg-[var(--bg-card)]'}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2 text-[var(--text-muted)]"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+            <span className="text-sm text-[var(--text-secondary)]">Text</span>
           </button>
-          <button onClick={() => setType('voice')} className={`flex-1 py-4 rounded-xl border-2 transition-all ${type === 'voice' ? 'border-[#7c3aed] bg-[#7c3aed]/10' : 'border-[#1a1a2e] bg-[#1a1a2e]'}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2 text-gray-300"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-            <span className="text-sm text-gray-300">Voice</span>
+          <button onClick={() => setType('voice')} className={`flex-1 py-4 rounded-xl border transition-all backdrop-blur-md ${type === 'voice' ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 shadow-sm' : 'border-[rgba(255,255,255,0.8)] bg-[var(--bg-card)]'}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2 text-[var(--text-muted)]"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+            <span className="text-sm text-[var(--text-secondary)]">Voice</span>
           </button>
         </div>
 
         {type === 'text' ? (
           <div className="mb-6">
             <textarea className="input-field textarea-field" placeholder="Your secret is safe here..." value={content} onChange={(e) => setContent(e.target.value)} maxLength={2000} />
-            <p className={`text-right text-sm mt-2 ${wordCount > 200 ? 'text-red-400' : 'text-gray-400'}`}>{wordCount} / 200 words</p>
+          <p className={`text-right text-sm mt-2 ${wordCount > 200 ? 'text-red-500' : 'text-[var(--text-muted)]'}`}>{wordCount} / 200 words</p>
           </div>
         ) : (
           <div className="mb-6">
             {!audioBlob ? (
-              <div className="recorder-container bg-[#1a1a2e] rounded-xl py-12">
-                <button onClick={isRecording ? stopRecording : startRecording} className={`record-btn ${isRecording ? 'recording' : ''}`}>
+            <div className="recorder-container bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.6)] backdrop-blur-md rounded-xl py-12 shadow-sm">
+              <button onClick={isRecording ? stopRecording : startRecording} className={`w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center transition-all ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-gradient-to-br from-[var(--accent-primary)] to-[var(--accent-secondary)] hover:scale-105 shadow-md'}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">{isRecording ? <rect x="6" y="6" width="12" height="12"/> : <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>}</svg>
                 </button>
                 {isRecording && <div className="recording-timer text-red-400 text-2xl font-display">{formatTime(recordingTime)}</div>}
-                <p className="text-gray-400 text-sm">{isRecording ? 'Tap to stop' : 'Tap to record (max 100s)'}</p>
+              <p className="text-[var(--text-muted)] text-sm">{isRecording ? 'Tap to stop' : 'Tap to record (max 100s)'}</p>
               </div>
             ) : (
-              <div className="bg-[#1a1a2e] rounded-xl p-4">
+            <div className="bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.6)] backdrop-blur-md rounded-xl p-4 shadow-sm">
                 <div className="flex items-center gap-4">
                   <button className="play-btn w-12 h-12" onClick={(e) => e.stopPropagation()}><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
-                  <div className="flex-1"><div className="waveform h-10">{Array.from({ length: 20 }).map((_, i) => <div key={i} className="waveform-bar" style={{ height: `${Math.random() * 30 + 10}px` }}></div>)}</div></div>
-                  <span className="text-sm text-gray-400">{formatTime(recordingTime)}</span>
+                  <div className="flex-1"><div className="waveform h-10">{waveformHeights.map((height, i) => <div key={i} className="waveform-bar" style={{ height: `${height}px` }}></div>)}</div></div>
+                <span className="text-sm text-[var(--text-muted)]">{formatTime(recordingTime)}</span>
                 </div>
-                <button onClick={() => { setAudioBlob(null); setRecordingTime(0); }} className="mt-4 text-sm text-red-400 hover:text-red-300">Re-record</button>
+                <button onClick={() => { setAudioBlob(null); setRecordingTime(0); }} className="mt-4 text-sm text-red-500 hover:text-red-600">Re-record</button>
               </div>
             )}
 
             <div className="mt-4">
-              <p className="text-sm text-gray-400 mb-2">Voice Effect</p>
+              <p className="text-sm text-[var(--text-muted)] mb-2">Voice Effect</p>
               <div className="flex gap-2 flex-wrap">
                 {VOICE_EFFECTS.map(effect => (
-                  <button key={effect.id} onClick={() => setVoiceEffect(effect.id)} className={`px-4 py-2 rounded-full text-sm transition-all ${voiceEffect === effect.id ? 'bg-[#7c3aed] text-white' : 'bg-[#1a1a2e] text-gray-400'}`}>{effect.name}</button>
+                  <button key={effect.id} onClick={() => setVoiceEffect(effect.id)} className={`px-4 py-2 rounded-full text-sm transition-all ${voiceEffect === effect.id ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border border-[rgba(255,255,255,0.6)] text-[var(--text-secondary)] backdrop-blur-md'}`}>{effect.name}</button>
                 ))}
               </div>
             </div>
 
             <div className="mt-4">
-              <p className="text-sm text-gray-400 mb-2">Ambient Sound</p>
+              <p className="text-sm text-[var(--text-muted)] mb-2">Ambient Sound</p>
               <div className="flex gap-2 flex-wrap">
                 {AMBIENT_SOUNDS.map(sound => (
-                  <button key={sound.id} onClick={() => setAmbientSound(sound.id)} className={`px-4 py-2 rounded-full text-sm transition-all ${ambientSound === sound.id ? 'bg-[#7c3aed] text-white' : 'bg-[#1a1a2e] text-gray-400'}`}>{sound.name}</button>
+                  <button key={sound.id} onClick={() => setAmbientSound(sound.id)} className={`px-4 py-2 rounded-full text-sm transition-all ${ambientSound === sound.id ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border border-[rgba(255,255,255,0.6)] text-[var(--text-secondary)] backdrop-blur-md'}`}>{sound.name}</button>
                 ))}
               </div>
             </div>
@@ -1080,28 +1203,28 @@ const CreatePage = () => {
         )}
 
         <div className="mb-6">
-          <p className="text-sm text-gray-400 mb-2">Categories ({selectedCategories.length}/3)</p>
+          <p className="text-sm text-[var(--text-muted)] mb-2">Categories ({selectedCategories.length}/3)</p>
           <div className="flex gap-2 flex-wrap">
             {CATEGORIES.map(cat => (
-              <button key={cat.id} onClick={() => toggleCategory(cat.id)} className={`category-pill transition-all ${selectedCategories.includes(cat.id) ? 'ring-2 ring-white' : ''}`} style={{ background: selectedCategories.includes(cat.id) ? cat.color : `${cat.color}30`, color: selectedCategories.includes(cat.id) ? '#000' : cat.color, border: `1px solid ${cat.color}60` }}>{cat.name}</button>
+              <button key={cat.id} onClick={() => toggleCategory(cat.id)} className={`category-pill transition-all ${selectedCategories.includes(cat.id) ? 'ring-2 ring-white shadow-sm' : 'backdrop-blur-md'}`} style={{ background: selectedCategories.includes(cat.id) ? cat.color : `${cat.color}30`, color: selectedCategories.includes(cat.id) ? '#fff' : cat.color, border: `1px solid ${cat.color}40` }}>{cat.name}</button>
             ))}
           </div>
         </div>
 
         <div className="mb-6">
-          <p className="text-sm text-gray-400 mb-2">Mood (optional)</p>
+          <p className="text-sm text-[var(--text-muted)] mb-2">Mood (optional)</p>
           <div className="flex gap-2 flex-wrap">
             {MOOD_EMOJIS.map(emoji => (
-              <button key={emoji} onClick={() => setSelectedMood(selectedMood === emoji ? '' : emoji)} className={`text-2xl p-2 rounded-lg transition-all ${selectedMood === emoji ? 'bg-[#7c3aed]/30 scale-110' : 'hover:bg-[#1a1a2e]'}`}>{emoji}</button>
+              <button key={emoji} onClick={() => setSelectedMood(selectedMood === emoji ? '' : emoji)} className={`text-2xl p-2 rounded-lg transition-all ${selectedMood === emoji ? 'bg-[var(--accent-primary)]/30 scale-110' : 'hover:bg-[var(--bg-hover)]'}`}>{emoji}</button>
             ))}
           </div>
         </div>
 
         <div className="mb-6">
-          <p className="text-sm text-gray-400 mb-2">Expires in</p>
+          <p className="text-sm text-[var(--text-muted)] mb-2">Expires in</p>
           <div className="flex gap-2">
             {[{ id: '24h', label: '24 Hours' }, { id: '7d', label: '7 Days' }, { id: 'never', label: 'Never' }].map(opt => (
-              <button key={opt.id} onClick={() => setExpiry(opt.id)} className={`flex-1 py-3 rounded-lg text-sm transition-all ${expiry === opt.id ? 'bg-[#7c3aed] text-white' : 'bg-[#1a1a2e] text-gray-400'}`}>{opt.label}</button>
+              <button key={opt.id} onClick={() => setExpiry(opt.id)} className={`flex-1 py-3 rounded-lg text-sm transition-all ${expiry === opt.id ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border border-[rgba(255,255,255,0.6)] text-[var(--text-secondary)] backdrop-blur-md'}`}>{opt.label}</button>
             ))}
           </div>
         </div>
@@ -1119,21 +1242,66 @@ const CreatePage = () => {
 // =============================================================================
 const RadioPage = () => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentConfession, setCurrentConfession] = useState(MOCK_CONFESSIONS[1]);
+  const [currentConfession, setCurrentConfession] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [queue, setQueue] = useState([]);
+  const [queueCount, setQueueCount] = useState(0);
+  const audioRef = useRef(null);
 
-  const handleNext = () => {
-    const filtered = selectedCategory === 'all' 
-      ? MOCK_CONFESSIONS 
-      : MOCK_CONFESSIONS.filter(c => c.categories.includes(selectedCategory));
-    const random = filtered[Math.floor(Math.random() * filtered.length)];
-    if (random) setCurrentConfession(random);
-    setIsPlaying(true);
-  };
+  const fetchRadioQueue = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}/api/radio?category=${selectedCategory}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch radio queue');
+      const data = await res.json();
+      
+      if (data.queue && data.queue.length > 0) {
+        setQueue(data.queue);
+        setCurrentConfession(data.queue[0]);
+        setQueueCount(data.queueLength);
+      } else {
+        // Fallback to mock data if the database is empty so the UI doesn't break
+        const mockQueue = MOCK_CONFESSIONS.filter(c => selectedCategory === 'all' || c.categories.includes(selectedCategory));
+        setQueue(mockQueue);
+        setCurrentConfession(mockQueue[0] || MOCK_CONFESSIONS[1]);
+        setQueueCount(mockQueue.length);
+      }
+    } catch (err) {
+      console.error('Radio fetch error:', err);
+      const mockQueue = MOCK_CONFESSIONS.filter(c => selectedCategory === 'all' || c.categories.includes(selectedCategory));
+      setQueue(mockQueue);
+      setCurrentConfession(mockQueue[0] || MOCK_CONFESSIONS[1]);
+      setQueueCount(mockQueue.length);
+    }
+  }, [selectedCategory]);
+
+  const handleNext = useCallback(() => {
+    if (queue.length > 1) {
+      const newQueue = queue.slice(1);
+      setQueue(newQueue);
+      setCurrentConfession(newQueue[0]);
+      setQueueCount(prev => prev - 1);
+      setIsPlaying(true);
+    } else {
+      fetchRadioQueue();
+    }
+  }, [queue, fetchRadioQueue]);
 
   useEffect(() => {
-    handleNext();
-  }, [selectedCategory]);
+    fetchRadioQueue();
+  }, [fetchRadioQueue]);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.pause();
+    
+    if (currentConfession?.audioUrl && isPlaying) {
+      audioRef.current = new Audio(currentConfession.audioUrl);
+      audioRef.current.onended = handleNext;
+      audioRef.current.play().catch(e => console.error("Auto-play blocked:", e));
+    }
+  }, [currentConfession, isPlaying, handleNext]);
 
   return (
     <div className="radio-container">
@@ -1143,30 +1311,30 @@ const RadioPage = () => {
 
       <div className="w-full px-4 mb-8 z-10">
         <div className="flex gap-2 overflow-x-auto hide-scrollbar justify-center">
-          <button onClick={() => setSelectedCategory('all')} className={`px-4 py-2 rounded-full text-sm whitespace-nowrap ${selectedCategory === 'all' ? 'bg-[#7c3aed] text-white' : 'bg-[#1a1a2e] text-gray-400'}`}>All</button>
+          <button onClick={() => setSelectedCategory('all')} className={`px-4 py-2 rounded-full text-sm whitespace-nowrap ${selectedCategory === 'all' ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border border-[rgba(255,255,255,0.6)] text-[var(--text-secondary)] backdrop-blur-md'}`}>All</button>
           {CATEGORIES.map(cat => (
-            <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all ${selectedCategory === cat.id ? 'ring-2 ring-white' : ''}`} style={{ background: selectedCategory === cat.id ? cat.color : `${cat.color}30`, color: selectedCategory === cat.id ? '#000' : cat.color }}>{cat.name}</button>
+            <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all ${selectedCategory === cat.id ? 'ring-2 ring-white shadow-sm' : 'backdrop-blur-md'}`} style={{ background: selectedCategory === cat.id ? cat.color : `${cat.color}30`, color: selectedCategory === cat.id ? '#fff' : cat.color }}>{cat.name}</button>
           ))}
         </div>
       </div>
 
       <div className="radio-player">
-        <div className={`radio-orb ${getRarityOrbClass(currentConfession.author?.rarity)}`}>
+        <div className={`radio-orb ${getRarityOrbClass(currentConfession?.author?.rarity)}`}>
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
 
         <div className="radio-info">
-          <h2 className={`radio-author ${getRarityTextClass(currentConfession.author?.rarity)}`}>{currentConfession.authorName}</h2>
-          <span className="radio-category" style={{ background: `${CATEGORIES.find(c => c.id === currentConfession.categories?.[0])?.color || '#7c3aed'}30`, color: CATEGORIES.find(c => c.id === currentConfession.categories?.[0])?.color || '#7c3aed' }}>{CATEGORIES.find(c => c.id === currentConfession.categories?.[0])?.name || 'General'}</span>
+          <h2 className={`radio-author ${getRarityTextClass(currentConfession?.author?.rarity)}`}>{currentConfession?.authorName || 'Listening to the Echo...'}</h2>
+          <span className="radio-category" style={{ background: `${CATEGORIES.find(c => c.id === currentConfession?.categories?.[0])?.color || 'var(--accent-primary)'}30`, color: CATEGORIES.find(c => c.id === currentConfession?.categories?.[0])?.color || 'var(--accent-primary)' }}>{CATEGORIES.find(c => c.id === currentConfession?.categories?.[0])?.name || 'General'}</span>
         </div>
 
         <div className="radio-controls">
           <button onClick={handleNext} className="radio-btn"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg></button>
-          <button onClick={() => setIsPlaying(!isPlaying)} className="radio-btn play"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">{isPlaying ? <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/> : <polygon points="5 3 19 12 5 21 5 3"/>}</svg></button>
+          <button onClick={() => setIsPlaying(!isPlaying)} className="radio-btn play"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">{isPlaying ? <><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></> : <polygon points="5 3 19 12 5 21 5 3"/>}</svg></button>
           <button onClick={handleNext} className="radio-btn"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg></button>
         </div>
 
-        <p className="mt-8 text-gray-400 text-sm">{MOCK_CONFESSIONS.filter(c => selectedCategory === 'all' || c.categories.includes(selectedCategory)).length} whispers in queue</p>
+        <p className="mt-8 text-[var(--text-muted)] text-sm">{queueCount} whispers in queue</p>
       </div>
     </div>
   );
@@ -1178,40 +1346,158 @@ const RadioPage = () => {
 const MessagesPage = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [newMessage, setNewMessage] = useState('');
+  const [localMessages, setLocalMessages] = useState([]);
+  const [conversations, setConversations] = useState([]);
   const messagesEndRef = useRef(null);
+  const { user } = useAuth();
+  const { socket } = useSocket() || {};
+
+  useEffect(() => {
+    const fetchConversations = async () => {
+      try {
+        const token = localStorage.getItem('morpheus_token');
+        const res = await fetch(`${SOCKET_URL}/api/messages`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) setConversations(await res.json());
+      } catch (err) {
+        console.error('Failed to fetch conversations:', err);
+      }
+    };
+    fetchConversations();
+  }, []);
+
+  // Fetch historical messages when a user is selected
+  useEffect(() => {
+    if (!selectedUser) return;
+    
+    const fetchMessages = async () => {
+      try {
+        const token = localStorage.getItem('morpheus_token');
+        const res = await fetch(`${SOCKET_URL}/api/messages/${selectedUser}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) setLocalMessages(data);
+          
+          // Clear the unread indicator for this conversation
+          setConversations(prev => prev.map(conv => 
+            conv.partner._id === selectedUser ? { ...conv, unread: 0 } : conv
+          ));
+        }
+      } catch (err) {
+        console.error('Failed to fetch messages:', err);
+      }
+    };
+    fetchMessages();
+  }, [selectedUser]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [selectedUser, MOCK_MESSAGES]);
+  }, [selectedUser, localMessages]);
+
+  // Listen for incoming real-time messages
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleNewMessage = (data) => {
+      // Only append to the active chat window if we are currently talking to the sender
+      if (data.fromId === selectedUser) {
+        setLocalMessages(prev => [...prev, {
+          _id: data.messageId,
+          sender: { _id: data.fromId, anonymousName: data.from },
+          content: data.content,
+          createdAt: data.timestamp,
+          read: false
+        }]);
+      }
+      
+      // Real-time sync for the sidebar conversation list
+      setConversations(prev => {
+        const exists = prev.find(c => c.partner._id === data.fromId);
+        if (!exists) return prev; // Requires a page refresh for brand new conversations
+        return prev.map(c => c.partner._id === data.fromId ? {
+          ...c,
+          lastMessage: { content: data.content, createdAt: data.timestamp },
+          unread: c.partner._id === selectedUser ? 0 : (c.unread || 0) + 1
+        } : c);
+      });
+    };
+    
+    socket.on('new_message', handleNewMessage);
+    return () => socket.off('new_message', handleNewMessage);
+  }, [socket, selectedUser]);
+
+  const handleSend = () => {
+    if (!newMessage.trim() || !selectedUser) return;
+    
+    const currentUserId = user?.id || user?._id || 'demo123';
+    const msgContent = newMessage.trim();
+    const timestamp = new Date().toISOString();
+    
+    // Emit to real-time socket
+    if (socket) {
+      socket.emit('send_message', {
+        to: selectedUser,
+        content: msgContent,
+        from: currentUserId
+      });
+    }
+    
+    // Optimistic UI update for the sender
+    setLocalMessages(prev => [...prev, {
+      _id: Date.now().toString(),
+      sender: { _id: currentUserId },
+      content: msgContent,
+      createdAt: timestamp,
+      read: true
+    }]);
+
+    // Update the sidebar preview instantly
+    setConversations(prev => prev.map(c => 
+      c.partner._id === selectedUser ? {
+        ...c,
+        lastMessage: { content: msgContent, createdAt: timestamp }
+      } : c
+    ));
+    
+    setNewMessage('');
+  };
 
   return (
     <div className="messages-container">
-      <div className="conversations-list">
-        <div className="p-4 border-b border-[#7c3aed]/10"><h2 className="font-display text-xl text-white">Messages</h2></div>
-        {MOCK_CONVERSATIONS.map((conv) => (
+      <div className={`conversations-list ${selectedUser ? 'hide-on-mobile' : ''}`}>
+        <div className="p-4 border-b border-[rgba(255,255,255,0.6)]"><h2 className="font-display text-xl text-[var(--text-primary)]">Messages</h2></div>
+        {conversations.length > 0 ? conversations.map((conv) => (
           <div key={conv.partner._id} onClick={() => setSelectedUser(conv.partner._id)} className={`conversation-item ${selectedUser === conv.partner._id ? 'active' : ''}`}>
             <AuthorOrb rarity={conv.partner.rarity} size={44} />
             <div className="conversation-preview">
-              <p className="conversation-name text-white">{conv.partner.anonymousName}</p>
+              <p className="conversation-name text-[var(--text-primary)]">{conv.partner.anonymousName}</p>
               <p className="conversation-text">{conv.lastMessage.content}</p>
             </div>
             <div className="conversation-meta">
               <p className="conversation-time">{formatRelativeTime(conv.lastMessage.createdAt)}</p>
-              {conv.unread > 0 && <span className="bg-[#7c3aed] text-white text-xs px-2 py-0.5 rounded-full">{conv.unread}</span>}
+              {conv.unread > 0 && <span className="bg-[var(--accent-primary)] text-white text-xs px-2 py-0.5 rounded-full">{conv.unread}</span>}
             </div>
           </div>
-        ))}
+        )) : (
+          <div className="p-8 text-center text-[var(--text-muted)] text-sm">No conversations yet</div>
+        )}
       </div>
 
       {selectedUser ? (
-        <div className="chat-container">
+        <div className={`chat-container ${!selectedUser ? 'hide-on-mobile' : ''}`}>
           <div className="chat-header">
-            <AuthorOrb rarity={MOCK_CONVERSATIONS.find(c => c.partner._id === selectedUser)?.partner.rarity} size={36} />
-            <span className="font-semibold text-white">{MOCK_CONVERSATIONS.find(c => c.partner._id === selectedUser)?.partner.anonymousName}</span>
+            <button className="back-btn mobile-only" onClick={() => setSelectedUser(null)}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <AuthorOrb rarity={conversations.find(c => c.partner._id === selectedUser)?.partner.rarity} size={36} />
+          <span className="font-semibold text-[var(--text-primary)]">{conversations.find(c => c.partner._id === selectedUser)?.partner.anonymousName}</span>
           </div>
 
           <div className="chat-messages">
-            {MOCK_MESSAGES.filter(msg => msg.sender._id === selectedUser || msg.sender._id === 'demo123').map((msg, idx) => (
+            {localMessages.filter(msg => msg.sender._id === selectedUser || msg.sender._id === (user?.id || user?._id || 'demo123')).map((msg, idx) => (
               <div key={msg._id || idx} className={`message-bubble ${msg.sender._id === selectedUser ? 'received' : 'sent'}`}>
                 <p>{msg.content}</p>
                 <p className="message-time">{formatRelativeTime(msg.createdAt)}{msg.sender._id !== selectedUser && <span className="ml-2">{msg.read ? '✓✓' : '✓'}</span>}</p>
@@ -1221,13 +1507,13 @@ const MessagesPage = () => {
           </div>
 
           <div className="chat-input-container">
-            <input type="text" className="chat-input" placeholder="Type your whisper..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} maxLength={500} onKeyPress={(e) => e.key === 'Enter' && newMessage.trim() && (setNewMessage(''), alert('Message sent (Demo Mode)'))} />
-            <button onClick={() => { if (newMessage.trim()) { setNewMessage(''); alert('Message sent (Demo Mode)'); } }} className="chat-send-btn"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+            <input type="text" className="chat-input" placeholder="Type your whisper..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} maxLength={500} onKeyDown={(e) => e.key === 'Enter' && handleSend()} />
+            <button onClick={handleSend} className="chat-send-btn"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
           </div>
         </div>
       ) : (
-        <div className="chat-container flex items-center justify-center">
-          <div className="text-center text-gray-400">
+        <div className="chat-container hide-on-mobile flex items-center justify-center">
+          <div className="text-center text-[var(--text-muted)]">
             <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 opacity-50"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
             <p>Select a conversation to start whispering</p>
           </div>
@@ -1241,29 +1527,74 @@ const MessagesPage = () => {
 // NOTIFICATIONS PAGE
 // =============================================================================
 const NotificationsPage = () => {
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { setUnreadCount } = useSocket() || {};
 
-  const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const token = localStorage.getItem('morpheus_token');
+        const res = await fetch(`${SOCKET_URL}/api/notifications`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setNotifications(data.notifications || []);
+          if (data.unreadCount !== undefined && setUnreadCount) {
+            setUnreadCount(data.unreadCount);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch notifications:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchNotifications();
+  }, []);
+
+  const markAllRead = async () => {
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      await fetch(`${SOCKET_URL}/api/notifications/read-all`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      if (setUnreadCount) {
+        setUnreadCount(0); // Instantly wipe the global red badge
+      }
+    } catch (err) {
+      console.error('Failed to mark notifications as read:', err);
+    }
   };
 
   const getNotificationIcon = (type) => ({ reaction: 'heart', comment: 'message-square', message: 'message-circle', follow: 'user-plus', chain: 'link', streak: 'flame', level: 'trending-up' }[type] || 'bell');
 
   return (
     <div className="min-h-screen pb-20 md:pb-0">
-      <div className="sticky top-0 z-10 bg-[#0a0a0f]/95 backdrop-blur-lg border-b border-[#7c3aed]/10">
+      <div className="sticky top-0 z-10 bg-[var(--bg-secondary)] backdrop-blur-xl border-b border-[rgba(255,255,255,0.6)]">
         <div className="p-4 flex items-center justify-between">
-          <h1 className="font-display text-xl text-white">Notifications</h1>
-          {notifications.some(n => !n.read) && <button onClick={markAllRead} className="text-sm text-[#7c3aed] hover:text-[#a855f7]">Mark all read</button>}
+          <h1 className="font-display text-xl text-[var(--text-primary)]">Notifications</h1>
+          {notifications.some(n => !n.read) && <button onClick={markAllRead} className="text-sm text-[var(--accent-primary)] hover:text-[var(--accent-secondary)]">Mark all read</button>}
         </div>
       </div>
 
       <div className="p-4">
         <div className="space-y-3">
-          {notifications.map((notification) => (
-            <div key={notification._id} className={`notification-item ${!notification.read ? 'unread' : ''}`}>
+          {loading ? (
+            <div className="text-center text-[var(--text-muted)] py-12 animate-pulse">Loading alerts...</div>
+          ) : notifications.length > 0 ? (
+            notifications.map((notification) => (
+            <motion.div 
+              key={notification._id}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className={`notification-item ${!notification.read ? 'unread' : ''}`}
+            >
               <div className="notification-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#7c3aed]">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent-primary)]">
                   {getNotificationIcon(notification.type) === 'heart' && <><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></>}
                   {getNotificationIcon(notification.type) === 'message-square' && <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></>}
                   {getNotificationIcon(notification.type) === 'message-circle' && <><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></>}
@@ -1272,11 +1603,14 @@ const NotificationsPage = () => {
                 </svg>
               </div>
               <div className="notification-content">
-                <p className="notification-text text-white">{notification.message}</p>
+              <p className="notification-text text-[var(--text-primary)]">{notification.message}</p>
                 <p className="notification-time">{formatRelativeTime(notification.createdAt)}</p>
               </div>
-            </div>
-          ))}
+            </motion.div>
+            ))
+          ) : (
+            <div className="text-center text-[var(--text-muted)] py-12">No notifications yet.</div>
+          )}
         </div>
       </div>
     </div>
@@ -1289,16 +1623,66 @@ const NotificationsPage = () => {
 const ProfilePage = () => {
   const { id } = useParams();
   const { user: currentUser } = useAuth();
-  const profile = (id === 'me' || id === currentUser?._id) ? currentUser : MOCK_CONFESSIONS[0].author;
-  const isOwnProfile = (id === 'me' || id === currentUser?._id);
+  const currentUserId = currentUser?.id || currentUser?._id;
+  const targetId = id === 'me' ? currentUserId : id;
+  const isOwnProfile = targetId === currentUserId;
+  
+  const [profile, setProfile] = useState(null);
+  const [userConfessions, setUserConfessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!targetId) return;
+    
+    const fetchProfileData = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem('morpheus_token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+        
+        const [profileRes, confessionsRes] = await Promise.all([
+          fetch(`${SOCKET_URL}/api/users/${targetId}`, { headers }),
+          fetch(`${SOCKET_URL}/api/users/${targetId}/confessions?limit=10`, { headers })
+        ]);
+        
+        if (profileRes.ok) {
+          const data = await profileRes.json();
+          setProfile(data.user);
+        }
+        if (confessionsRes.ok) {
+          const data = await confessionsRes.json();
+          setUserConfessions(data.confessions);
+        }
+      } catch (err) {
+        console.error('Failed to fetch profile:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchProfileData();
+  }, [targetId]);
+
   const xpPercent = profile ? ((profile.xp % 100) / 100) * 100 : 0;
 
-  const handleFollowChange = (newStatus) => {
-    console.log('Follow status changed:', newStatus);
+  const handleFollowChange = async (newStatus) => {
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      await fetch(`${SOCKET_URL}/api/users/${targetId}/follow`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+    } catch (err) {
+      console.error('Follow error:', err);
+    }
   };
 
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center"><div className="text-[var(--text-muted)] animate-pulse">Loading Profile...</div></div>;
+  }
+
   if (!profile) {
-    return <div className="min-h-screen flex items-center justify-center"><div className="text-gray-400">User not found</div></div>;
+    return <div className="min-h-screen flex items-center justify-center"><div className="text-[var(--text-muted)]">User not found</div></div>;
   }
 
   return (
@@ -1347,9 +1731,13 @@ const ProfilePage = () => {
       )}
 
       <div className="p-4">
-        <h3 className="text-lg font-semibold mb-4 text-white">Whispers</h3>
+        <h3 className="text-lg font-semibold mb-4 text-[var(--text-primary)]">Whispers</h3>
         <div className="space-y-4">
-          {MOCK_CONFESSIONS.slice(0, 2).map(confession => <ConfessionCard key={confession._id} confession={confession} />)}
+          {userConfessions.length > 0 ? (
+            userConfessions.map(confession => <ConfessionCard key={confession._id} confession={confession} />)
+          ) : (
+            <div className="text-center text-[var(--text-muted)] py-8">No whispers shared yet.</div>
+          )}
         </div>
       </div>
     </div>
@@ -1359,31 +1747,47 @@ const ProfilePage = () => {
 // =============================================================================
 // MAIN APP LAYOUT
 // =============================================================================
-const AppLayout = ({ children }) => (
-  <div className="min-h-screen bg-[#0a0a0f]">
-    <Sidebar />
-    <main className="main-content md:ml-60">
-      <div className="page-container">{children}</div>
-    </main>
-    <BottomNav />
-  </div>
-);
+const AppLayout = ({ children }) => {
+  const location = useLocation();
+  return (
+    <div className="min-h-screen bg-transparent">
+      <Sidebar />
+      <main className="main-content">
+        <AnimatePresence mode="wait">
+          <motion.div 
+            key={location.pathname}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.3 }}
+            className="page-container"
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
+      </main>
+      <BottomNav />
+    </div>
+  );
+};
 
 // =============================================================================
 // MAIN APP COMPONENT
 // =============================================================================
 const App = () => (
   <AuthProvider>
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/reveal" element={<IdentityRevealPage />} />
-      <Route path="/" element={<ProtectedRoute><AppLayout><HomePage /></AppLayout></ProtectedRoute>} />
-      <Route path="/create" element={<ProtectedRoute><AppLayout><CreatePage /></AppLayout></ProtectedRoute>} />
-      <Route path="/radio" element={<ProtectedRoute><AppLayout><RadioPage /></AppLayout></ProtectedRoute>} />
-      <Route path="/messages" element={<ProtectedRoute><AppLayout><MessagesPage /></AppLayout></ProtectedRoute>} />
-      <Route path="/notifications" element={<ProtectedRoute><AppLayout><NotificationsPage /></AppLayout></ProtectedRoute>} />
-      <Route path="/profile/:id" element={<ProtectedRoute><AppLayout><ProfilePage /></AppLayout></ProtectedRoute>} />
-    </Routes>
+    <SocketProvider>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/reveal" element={<IdentityRevealPage />} />
+        <Route path="/" element={<ProtectedRoute><AppLayout><HomePage /></AppLayout></ProtectedRoute>} />
+        <Route path="/create" element={<ProtectedRoute><AppLayout><CreatePage /></AppLayout></ProtectedRoute>} />
+        <Route path="/radio" element={<ProtectedRoute><AppLayout><RadioPage /></AppLayout></ProtectedRoute>} />
+        <Route path="/messages" element={<ProtectedRoute><AppLayout><MessagesPage /></AppLayout></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><AppLayout><NotificationsPage /></AppLayout></ProtectedRoute>} />
+        <Route path="/profile/:id" element={<ProtectedRoute><AppLayout><ProfilePage /></AppLayout></ProtectedRoute>} />
+      </Routes>
+    </SocketProvider>
   </AuthProvider>
 );
 
