@@ -208,21 +208,6 @@ const getRarityOrbClass = (rarity) => {
 const getCategoryClass = (categoryId) => `cat-${categoryId}`;
 
 // =============================================================================
-// GLOBAL MEMORY CACHE (Stale-While-Revalidate for Lightning Fast Navigation)
-// =============================================================================
-const DATA_CACHE = {
-  feed: null,
-  feedCategory: 'all',
-  feedSort: 'trending',
-  feedPage: 1,
-  feedHasMore: true,
-  conversations: null,
-  notifications: null,
-  profile: null,
-  profileConfessions: null
-};
-
-// =============================================================================
 // AUTH CONTEXT
 // =============================================================================
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -1145,32 +1130,24 @@ const IdentityRevealPage = () => {
 // HOME FEED PAGE
 // =============================================================================
 const HomePage = () => {
-  const [selectedCategory, setSelectedCategory] = useState(DATA_CACHE.feedCategory || 'all');
-  const [sortBy, setSortBy] = useState(DATA_CACHE.feedSort || 'trending');
-  const [page, setPage] = useState(DATA_CACHE.feedPage || 1);
-  const [confessions, setConfessions] = useState(DATA_CACHE.feed || []);
-  const [hasMore, setHasMore] = useState(DATA_CACHE.feedHasMore !== false);
-  const [loading, setLoading] = useState(!DATA_CACHE.feed);
+  const [confessions, setConfessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [sortBy, setSortBy] = useState('trending');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   useEffect(() => {
-    if (selectedCategory !== DATA_CACHE.feedCategory || sortBy !== DATA_CACHE.feedSort) {
-      setPage(1);
-      setConfessions([]);
-      setHasMore(true);
-    }
+    setPage(1);
+    setConfessions([]);
   }, [selectedCategory, sortBy]);
 
   useEffect(() => {
     let isActive = true;
     const fetchFeed = async () => {
-      if (page === 1 && DATA_CACHE.feed && selectedCategory === DATA_CACHE.feedCategory && sortBy === DATA_CACHE.feedSort) {
-        setLoading(false);
-      } else if (page === 1) {
-        setLoading(true);
-      } else {
-        setIsLoadingMore(true);
-      }
+      if (page === 1) setLoading(true);
+      else setIsLoadingMore(true);
       
       try {
         const token = localStorage.getItem('morpheus_token');
@@ -1184,19 +1161,10 @@ const HomePage = () => {
         
         if (page === 1) {
           setConfessions(data.confessions);
-          DATA_CACHE.feed = data.confessions;
-          DATA_CACHE.feedCategory = selectedCategory;
-          DATA_CACHE.feedSort = sortBy;
-          DATA_CACHE.feedPage = 1;
-          DATA_CACHE.feedHasMore = data.pagination.page < data.pagination.pages;
         } else {
           setConfessions(prev => {
             const uniqueNew = data.confessions.filter(newConf => !prev.some(p => p._id === newConf._id));
-            const combined = [...prev, ...uniqueNew];
-            DATA_CACHE.feed = combined;
-            DATA_CACHE.feedPage = page;
-            DATA_CACHE.feedHasMore = data.pagination.page < data.pagination.pages;
-            return combined;
+            return [...prev, ...uniqueNew];
           });
         }
         setHasMore(data.pagination.page < data.pagination.pages);
@@ -1209,10 +1177,8 @@ const HomePage = () => {
           setHasMore(false);
         }
       } finally {
-        if (isActive) {
-          setLoading(false);
-          setIsLoadingMore(false);
-        }
+        setLoading(false);
+        setIsLoadingMore(false);
       }
     };
     fetchFeed();
@@ -1221,7 +1187,6 @@ const HomePage = () => {
 
   const handleDeleteConfession = (id) => {
     setConfessions(prev => prev.filter(c => c._id !== id));
-    if (DATA_CACHE.feed) DATA_CACHE.feed = DATA_CACHE.feed.filter(c => c._id !== id);
   };
 
   return (
@@ -2126,9 +2091,9 @@ const ProfilePage = () => {
   const targetId = id === 'me' ? currentUserId : id;
   const isOwnProfile = targetId === currentUserId;
   
-  const [profile, setProfile] = useState(null);
-  const [userConfessions, setUserConfessions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(() => isOwnProfile ? DATA_CACHE.profile : null);
+  const [userConfessions, setUserConfessions] = useState(() => isOwnProfile ? (DATA_CACHE.profileConfessions || []) : []);
+  const [loading, setLoading] = useState(() => isOwnProfile ? !DATA_CACHE.profile : true);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -2144,13 +2109,15 @@ const ProfilePage = () => {
     
     let isActive = true;
     if (page === 1) {
-      setProfile(null);
-      setUserConfessions([]);
+      if (!isOwnProfile || !DATA_CACHE.profile) {
+        setProfile(null);
+        setUserConfessions([]);
+      }
     }
     
     const fetchProfileData = async () => {
-      if (page === 1) setLoading(true);
-      else setIsLoadingMore(true);
+      if (page === 1 && (!isOwnProfile || !DATA_CACHE.profile)) setLoading(true);
+      else if (page > 1) setIsLoadingMore(true);
       
       try {
         const token = localStorage.getItem('morpheus_token');
@@ -2167,10 +2134,12 @@ const ProfilePage = () => {
           if (profileRes.ok) {
             const data = await profileRes.json();
             setProfile(data.user);
+            if (isOwnProfile) updateCache('profile', data.user);
           }
           if (confessionsRes.ok) {
             const data = await confessionsRes.json();
             setUserConfessions(data.confessions);
+            if (isOwnProfile) updateCache('profileConfessions', data.confessions);
             setHasMore(data.pagination?.page < data.pagination?.pages);
           }
         } else {
@@ -2180,7 +2149,9 @@ const ProfilePage = () => {
             const data = await confessionsRes.json();
             setUserConfessions(prev => {
               const uniqueNew = data.confessions.filter(newConf => !prev.some(p => p._id === newConf._id));
-              return [...prev, ...uniqueNew];
+              const combined = [...prev, ...uniqueNew];
+              if (isOwnProfile) updateCache('profileConfessions', combined);
+              return combined;
             });
             setHasMore(data.pagination?.page < data.pagination?.pages);
           }
@@ -2188,14 +2159,16 @@ const ProfilePage = () => {
       } catch (err) {
         console.error('Failed to fetch profile:', err);
       } finally {
-        setLoading(false);
-        setIsLoadingMore(false);
+        if (isActive) {
+          setLoading(false);
+          setIsLoadingMore(false);
+        }
       }
     };
     
     fetchProfileData();
     return () => { isActive = false; };
-  }, [targetId, page]);
+  }, [targetId, page, isOwnProfile]);
 
   const handleAvatarUpload = async (e) => {
     const file = e.target.files[0];
@@ -2213,12 +2186,20 @@ const ProfilePage = () => {
             });
             if (res.ok) {
               const data = await res.json();
-              setProfile(prev => ({ ...prev, avatarUrl: data.avatarUrl }));
+              setProfile(prev => {
+                const newProfile = { ...prev, avatarUrl: data.avatarUrl };
+                if (isOwnProfile) updateCache('profile', newProfile);
+                return newProfile;
+              });
               updateUser({ avatarUrl: data.avatarUrl });
-              setUserConfessions(prev => prev.map(conf => ({
-                ...conf,
-                author: { ...conf.author, avatarUrl: data.avatarUrl }
-              })));
+              setUserConfessions(prev => {
+                const newConfessions = prev.map(conf => ({
+                  ...conf,
+                  author: { ...conf.author, avatarUrl: data.avatarUrl }
+                }));
+                if (isOwnProfile) updateCache('profileConfessions', newConfessions);
+                return newConfessions;
+              });
             }
           } catch (err) {
             console.error('Upload request failed:', err);
@@ -2238,8 +2219,16 @@ const ProfilePage = () => {
   };
 
   const handleDeleteConfession = (id) => {
-    setUserConfessions(prev => prev.filter(c => c._id !== id));
-    setProfile(prev => ({ ...prev, totalConfessions: Math.max(0, prev.totalConfessions - 1) }));
+    setUserConfessions(prev => {
+      const newArr = prev.filter(c => c._id !== id);
+      if (isOwnProfile) updateCache('profileConfessions', newArr);
+      return newArr;
+    });
+    setProfile(prev => {
+      const newProfile = { ...prev, totalConfessions: Math.max(0, prev.totalConfessions - 1) };
+      if (isOwnProfile) updateCache('profile', newProfile);
+      return newProfile;
+    });
   };
 
   const xpPercent = profile ? ((profile.xp % 100) / 100) * 100 : 0;
