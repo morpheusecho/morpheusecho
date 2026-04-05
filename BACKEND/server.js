@@ -332,16 +332,20 @@ const io = new Server(server, {
   pingInterval: 25000
 });
 
-const connectedUsers = new Map();
-
 io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
 
   socket.on('authenticate', (data) => {
-    if (data.userId) {
-      socket.join(`user_${data.userId}`);
-      connectedUsers.set(data.userId, socket.id);
-      console.log(`User ${data.userId} authenticated on socket`);
+    try {
+      if (data.token && data.userId) {
+        const decoded = jwt.verify(data.token, CONFIG.JWT_SECRET);
+        if (decoded.userId === data.userId) {
+          socket.join(`user_${data.userId}`);
+          console.log(`User ${data.userId} authenticated on socket`);
+        }
+      }
+    } catch (err) {
+      console.error('Socket authentication failed');
     }
   });
 
@@ -358,12 +362,6 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    for (const [userId, socketId] of connectedUsers.entries()) {
-      if (socketId === socket.id) {
-        connectedUsers.delete(userId);
-        break;
-      }
-    }
     console.log('Socket disconnected:', socket.id);
   });
 });
@@ -606,32 +604,44 @@ function calculateLevel(xp) {
 }
 
 async function awardXP(userId, amount, reason) {
-  const user = await User.findById(userId);
+  // Use atomic increment to prevent concurrent XP loss on viral posts
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $inc: { xp: amount } },
+    { new: true }
+  );
+  
   if (!user) return null;
   
+  // Protect against negative XP bounds from un-reacting
+  if (user.xp < 0) {
+    user.xp = 0;
+    await User.findByIdAndUpdate(userId, { xp: 0 });
+  }
+
   const oldLevel = user.level;
-  user.xp = Math.max(0, user.xp + amount); // Protect against negative XP bounds
-  
   const levelInfo = calculateLevel(user.xp);
-  user.level = levelInfo.level;
-  user.title = levelInfo.title;
   
-  await user.save();
-  
-  // Level up notification
-  if (user.level > oldLevel) {
-    const notification = new Notification({
-      recipient: userId,
-      type: 'level',
-      message: `You reached Level ${user.level} — ${user.title} unlocked!`,
-      data: { newLevel: user.level, title: user.title }
-    });
-    await notification.save();
-    
-    io.to(`user_${userId}`).emit('level_up', {
-      newLevel: user.level,
-      title: user.title
-    });
+  // Only write to the database again if the level actually changed
+  if (user.level !== levelInfo.level || user.title !== levelInfo.title) {
+    user.level = levelInfo.level;
+    user.title = levelInfo.title;
+    await User.findByIdAndUpdate(userId, { level: user.level, title: user.title });
+
+    if (user.level > oldLevel) {
+      const notification = new Notification({
+        recipient: userId,
+        type: 'level',
+        message: `You reached Level ${user.level} — ${user.title} unlocked!`,
+        data: { newLevel: user.level, title: user.title }
+      });
+      await notification.save();
+      
+      io.to(`user_${userId}`).emit('level_up', {
+        newLevel: user.level,
+        title: user.title
+      });
+    }
   }
   
   return user;
@@ -1003,21 +1013,25 @@ app.post('/api/confessions', authenticate, async (req, res) => {
     // Update user stats
     await User.findByIdAndUpdate(req.user._id, { $inc: { totalConfessions: 1 } });
     
-    // Notify followers
-    for (const followerId of req.user.followers) {
-      const notification = new Notification({
-        recipient: followerId,
-        type: 'follow',
-        message: `${req.user.anonymousName} shared a new whisper`,
-        data: { confessionId: confession._id }
-      });
-      await notification.save();
-      
-      io.to(`user_${followerId}`).emit('notification', {
-        type: 'follow',
-        message: `${req.user.anonymousName} shared a new whisper`
-      });
-    }
+    // Notify followers asynchronously to prevent blocking the API response
+    setImmediate(async () => {
+      try {
+        const notifications = req.user.followers.map(followerId => ({
+          recipient: followerId,
+          type: 'follow',
+          message: `${req.user.anonymousName} shared a new whisper`,
+          data: { confessionId: confession._id }
+        }));
+        if (notifications.length > 0) {
+          await Notification.insertMany(notifications);
+          req.user.followers.forEach(followerId => {
+            io.to(`user_${followerId}`).emit('notification', { type: 'follow', message: `${req.user.anonymousName} shared a new whisper` });
+          });
+        }
+      } catch (err) {
+        console.error('Background notification error:', err);
+      }
+    });
     
     res.status(201).json({
       message: moderation.flagged ? 'Confession submitted for review' : 'Confession created successfully',
@@ -1113,39 +1127,34 @@ app.post('/api/confessions/:id/react', authenticate, async (req, res) => {
     
     const reactionArray = confession.reactions[reactionType];
     const userIndex = reactionArray.findIndex(id => id.toString() === req.user._id.toString());
+    const isSelfReaction = confession.author.toString() === req.user._id.toString();
     
     let action;
     if (userIndex > -1) {
       reactionArray.splice(userIndex, 1);
       action = 'removed';
       
-      // PREVENT XP FARMING: Deduct XP and total reactions when un-reacting
-      await awardXP(confession.author, -XP_REWARDS.RECEIVE_REACTION, 'REMOVE_REACTION');
-      await User.findByIdAndUpdate(confession.author, { $inc: { totalReactions: -1 } });
+      if (!isSelfReaction) {
+        await awardXP(confession.author, -XP_REWARDS.RECEIVE_REACTION, 'REMOVE_REACTION');
+        await User.findByIdAndUpdate(confession.author, { $inc: { totalReactions: -1 } });
+      }
     } else {
       reactionArray.push(req.user._id);
       action = 'added';
       
-      // Award XP to confession author
-      await awardXP(confession.author, XP_REWARDS.RECEIVE_REACTION, 'RECEIVE_REACTION');
-      
-      // Update author's total reactions
-      await User.findByIdAndUpdate(confession.author, { $inc: { totalReactions: 1 } });
-      
-      // Send notification
-      const notification = new Notification({
-        recipient: confession.author,
-        type: 'reaction',
-        message: `${req.user.anonymousName} sent you ${REACTIONS[reactionType].label}`,
-        data: { confessionId: confession._id, reactionType }
-      });
-      await notification.save();
-      
-      io.to(`user_${confession.author}`).emit('reaction_notification', {
-        confessionId: confession._id,
-        type: reactionType,
-        from: req.user.anonymousName
-      });
+      if (!isSelfReaction) {
+        await awardXP(confession.author, XP_REWARDS.RECEIVE_REACTION, 'RECEIVE_REACTION');
+        await User.findByIdAndUpdate(confession.author, { $inc: { totalReactions: 1 } });
+        
+        const notification = new Notification({
+          recipient: confession.author,
+          type: 'reaction',
+          message: `${req.user.anonymousName} sent you ${REACTIONS[reactionType].label}`,
+          data: { confessionId: confession._id, reactionType }
+        });
+        await notification.save();
+        io.to(`user_${confession.author}`).emit('reaction_notification', { confessionId: confession._id, type: reactionType, from: req.user.anonymousName });
+      }
     }
     
     await confession.save();
@@ -1226,22 +1235,23 @@ app.post('/api/confessions/:id/comments', authenticate, async (req, res) => {
       await Comment.findByIdAndUpdate(parentComment, { $push: { replies: comment._id } });
     }
 
-    // Award XP
-    await awardXP(confession.author, XP_REWARDS.RECEIVE_COMMENT, 'RECEIVE_COMMENT');
-    
-    // Notify confession author
-    const notification = new Notification({
-      recipient: confession.author,
-      type: 'comment',
-      message: `${req.user.anonymousName} commented on your whisper`,
-      data: { confessionId: confession._id, commentId: comment._id }
-    });
-    await notification.save();
-    
-    io.to(`user_${confession.author}`).emit('comment_notification', {
-      confessionId: confession._id,
-      commenterName: req.user.anonymousName
-    });
+    // Only award XP and notify if they aren't commenting on their own post
+    if (confession.author.toString() !== req.user._id.toString()) {
+      await awardXP(confession.author, XP_REWARDS.RECEIVE_COMMENT, 'RECEIVE_COMMENT');
+      
+      const notification = new Notification({
+        recipient: confession.author,
+        type: 'comment',
+        message: `${req.user.anonymousName} commented on your whisper`,
+        data: { confessionId: confession._id, commentId: comment._id }
+      });
+      await notification.save();
+      
+      io.to(`user_${confession.author}`).emit('comment_notification', {
+        confessionId: confession._id,
+        commenterName: req.user.anonymousName
+      });
+    }
     
     res.status(201).json({
       message: 'Comment added',

@@ -374,7 +374,7 @@ const SocketProvider = ({ children }) => {
 
       newSocket.on('connect', () => {
         console.log('Connected to real-time Echo server');
-        newSocket.emit('authenticate', { userId: currentUserId });
+        newSocket.emit('authenticate', { userId: currentUserId, token });
       });
       
       // Global listeners to increment the badge in real-time
@@ -412,30 +412,20 @@ const ProtectedRoute = ({ children }) => {
 const FollowButton = ({ userId, initialFollowing, onFollowChange }) => {
   const [isFollowing, setIsFollowing] = useState(initialFollowing);
   const [loading, setLoading] = useState(false);
-  const timeoutRef = useRef(null);
 
   useEffect(() => {
     setIsFollowing(initialFollowing);
   }, [initialFollowing]);
 
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
-
   const handleFollow = async (e) => {
     e.stopPropagation();
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setLoading(true);
-    timeoutRef.current = setTimeout(() => {
-      setIsFollowing(prev => {
-        const nextState = !prev;
-        if (onFollowChange) onFollowChange(nextState);
-        return nextState;
-      });
-      setLoading(false);
-    }, 10);
+    const nextState = !isFollowing;
+    setIsFollowing(nextState);
+    if (onFollowChange) {
+      await onFollowChange(nextState);
+    }
+    setLoading(false);
   };
 
   return (
@@ -630,11 +620,19 @@ const ConfessionCard = ({ confession, onDelete }) => {
     }
     if (isPlaying) {
       audioRef.current.pause();
+      setIsPlaying(false);
     } else {
       window.dispatchEvent(new CustomEvent('stop_all_audio', { detail: { id: confession._id } }));
-      audioRef.current.play();
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => setIsPlaying(true)).catch(e => {
+          console.error('Audio playback interrupted:', e);
+          setIsPlaying(false);
+        });
+      } else {
+        setIsPlaying(true);
+      }
     }
-    setIsPlaying(!isPlaying);
   };
 
   const toggleComments = async (e) => {
@@ -1536,7 +1534,7 @@ const RadioPage = () => {
         setQueueCount(data.queueLength);
       } else {
         // Fallback to mock data if the database is empty so the UI doesn't break
-        let mockQueue = MOCK_CONFESSIONS.filter(c => selectedCategory === 'all' || c.categories.includes(selectedCategory));
+        let mockQueue = MOCK_CONFESSIONS.filter(c => c.type === 'voice' && (selectedCategory === 'all' || c.categories.includes(selectedCategory)));
         if (mockQueue.length === 0) mockQueue = MOCK_CONFESSIONS; // Prevent infinite crash loop on empty categories
         setQueue(mockQueue);
         setCurrentConfession(mockQueue[0] || MOCK_CONFESSIONS[1]);
@@ -1544,7 +1542,7 @@ const RadioPage = () => {
       }
     } catch (err) {
       console.error('Radio fetch error:', err);
-      let mockQueue = MOCK_CONFESSIONS.filter(c => selectedCategory === 'all' || c.categories.includes(selectedCategory));
+      let mockQueue = MOCK_CONFESSIONS.filter(c => c.type === 'voice' && (selectedCategory === 'all' || c.categories.includes(selectedCategory)));
       if (mockQueue.length === 0) mockQueue = MOCK_CONFESSIONS;
       setQueue(mockQueue);
       setCurrentConfession(mockQueue[0] || MOCK_CONFESSIONS[1]);
@@ -1586,7 +1584,10 @@ const RadioPage = () => {
   }, [isPlaying]);
 
   useEffect(() => {
-    if (!currentConfession?.audioUrl) return;
+    if (!currentConfession?.audioUrl) {
+      setIsPlaying(false);
+      return;
+    }
 
     if (!audioRef.current || audioRef.current.src !== currentConfession.audioUrl) {
       if (audioRef.current) {
@@ -1765,7 +1766,7 @@ const MessagesPage = () => {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [selectedUser, localMessages]);
+  }, [selectedUser, localMessages.length]);
 
   // Listen for incoming real-time messages
   useEffect(() => {
@@ -1992,9 +1993,21 @@ const NotificationsPage = () => {
         });
         if (res.ok) {
           const data = await res.json();
-          setNotifications(data.notifications || []);
-          if (data.unreadCount !== undefined && setUnreadCount) {
-            setUnreadCount(data.unreadCount);
+          const hasUnread = data.notifications?.some(n => !n.read);
+          
+          if (hasUnread) {
+            setNotifications(data.notifications.map(n => ({ ...n, read: true })));
+            if (setUnreadCount) setUnreadCount(0); // Instantly wipe global red badge
+            
+            fetch(`${SOCKET_URL}/api/notifications/read-all`, {
+              method: 'PATCH',
+              headers: { 'Authorization': `Bearer ${token}` }
+            }).catch(err => console.error(err));
+          } else {
+            setNotifications(data.notifications || []);
+            if (data.unreadCount !== undefined && setUnreadCount) {
+              setUnreadCount(data.unreadCount);
+            }
           }
         }
       } catch (err) {
@@ -2005,22 +2018,6 @@ const NotificationsPage = () => {
     };
     fetchNotifications();
   }, []);
-
-  const markAllRead = async () => {
-    try {
-      const token = localStorage.getItem('morpheus_token');
-      await fetch(`${SOCKET_URL}/api/notifications/read-all`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-      if (setUnreadCount) {
-        setUnreadCount(0); // Instantly wipe the global red badge
-      }
-    } catch (err) {
-      console.error('Failed to mark notifications as read:', err);
-    }
-  };
 
   const handleNotificationClick = async (notification) => {
     if (!notification.read) {
@@ -2055,7 +2052,6 @@ const NotificationsPage = () => {
       <div className="sticky top-0 z-10 bg-[var(--bg-secondary)] backdrop-blur-xl border-b border-[rgba(255,255,255,0.6)]">
         <div className="p-4 flex items-center justify-between">
           <h1 className="font-display text-xl text-[var(--text-primary)]">Notifications</h1>
-          {notifications.some(n => !n.read) && <button onClick={markAllRead} className="text-sm text-[var(--accent-primary)] hover:text-[var(--accent-secondary)]">Mark all read</button>}
         </div>
       </div>
 
