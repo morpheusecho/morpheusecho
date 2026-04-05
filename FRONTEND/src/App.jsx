@@ -343,6 +343,7 @@ const SocketProvider = ({ children }) => {
   const { user } = useAuth();
   const [socket, setSocket] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const currentUserId = user?.id || user?._id;
 
   useEffect(() => {
@@ -356,6 +357,18 @@ const SocketProvider = ({ children }) => {
         .then(data => setUnreadCount(data.unreadCount || 0))
         .catch(err => console.error('Failed to fetch unread count:', err));
 
+      // Fetch initial unread messages count
+      fetch(`${SOCKET_URL}/api/messages`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setUnreadMessageCount(data.reduce((acc, conv) => acc + (conv.unread || 0), 0));
+          }
+        })
+        .catch(err => console.error('Failed to fetch messages count:', err));
+
       const newSocket = io(SOCKET_URL);
       setSocket(newSocket);
 
@@ -366,18 +379,19 @@ const SocketProvider = ({ children }) => {
       
       // Global listeners to increment the badge in real-time
       const incUnread = () => setUnreadCount(prev => prev + 1);
+      const incUnreadMsg = () => setUnreadMessageCount(prev => prev + 1);
       newSocket.on('notification', incUnread);
       newSocket.on('reaction_notification', incUnread);
       newSocket.on('comment_notification', incUnread);
       newSocket.on('follow_notification', incUnread);
       newSocket.on('level_up', incUnread);
-      newSocket.on('new_message', incUnread);
+      newSocket.on('new_message', incUnreadMsg);
 
       return () => newSocket.disconnect();
     }
   }, [currentUserId]);
 
-  return <SocketContext.Provider value={{ socket, unreadCount, setUnreadCount }}>{children}</SocketContext.Provider>;
+  return <SocketContext.Provider value={{ socket, unreadCount, setUnreadCount, unreadMessageCount, setUnreadMessageCount }}>{children}</SocketContext.Provider>;
 };
 
 const useSocket = () => useContext(SocketContext);
@@ -836,12 +850,12 @@ const ConfessionCard = ({ confession, onDelete }) => {
 // =============================================================================
 const BottomNav = () => {
   const location = useLocation();
-  const { unreadCount } = useSocket() || { unreadCount: 0 };
+  const { unreadCount, unreadMessageCount } = useSocket() || { unreadCount: 0, unreadMessageCount: 0 };
   const navItems = [
     { path: '/', icon: 'home', label: 'Feed' },
     { path: '/create', icon: 'edit', label: 'Confess' },
     { path: '/radio', icon: 'radio', label: 'Radio' },
-    { path: '/messages', icon: 'message-circle', label: 'Messages' },
+    { path: '/messages', icon: 'message-circle', label: 'Messages', badge: unreadMessageCount },
     { path: '/notifications', icon: 'bell', label: 'Alerts', badge: unreadCount },
     { path: '/profile/me', icon: 'user', label: 'Profile' }
   ];
@@ -872,13 +886,13 @@ const BottomNav = () => {
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const { unreadCount } = useSocket() || { unreadCount: 0 };
+  const { unreadCount, unreadMessageCount } = useSocket() || { unreadCount: 0, unreadMessageCount: 0 };
 
   const navItems = [
     { path: '/', icon: 'home', label: 'Feed' },
     { path: '/create', icon: 'edit', label: 'Confess' },
     { path: '/radio', icon: 'radio', label: 'Radio' },
-    { path: '/messages', icon: 'message-circle', label: 'Messages' },
+    { path: '/messages', icon: 'message-circle', label: 'Messages', badge: unreadMessageCount },
     { path: '/notifications', icon: 'bell', label: 'Notifications', badge: unreadCount },
     { path: '/profile/me', icon: 'user', label: 'Profile' }
   ];
@@ -1651,7 +1665,7 @@ const MessagesPage = () => {
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const { user } = useAuth();
-  const { socket, setUnreadCount } = useSocket() || {};
+  const { socket, setUnreadCount, setUnreadMessageCount } = useSocket() || {};
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -1772,7 +1786,7 @@ const MessagesPage = () => {
         });
 
         // Prevent global badge from permanently staying up since we are actively reading this
-        if (setUnreadCount) setUnreadCount(prev => Math.max(0, prev - 1));
+        if (setUnreadMessageCount) setUnreadMessageCount(prev => Math.max(0, prev - 1));
 
         // Instantly mark as read on the backend
         const token = localStorage.getItem('morpheus_token');
