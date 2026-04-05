@@ -1359,39 +1359,51 @@ app.post('/api/users/:id/follow', authenticate, async (req, res) => {
 // Get Conversations
 app.get('/api/messages', authenticate, async (req, res) => {
   try {
-    const messages = await Message.find({
-      $or: [{ sender: req.user._id }, { recipient: req.user._id }]
-    })
-      .populate('sender', 'anonymousName rarity')
-      .populate('recipient', 'anonymousName rarity')
-      .sort({ createdAt: -1 })
-      .limit(1000); // Prevents catastrophic memory limit exceptions for heavy users
-    
-    // Group by conversation partner
-    const conversations = new Map();
-    
-    for (const message of messages) {
-      // Prevent inbox crash if sender or recipient account was deleted from DB
-      if (!message.sender || !message.recipient) continue;
+    const conversations = await Message.aggregate([
+      {
+        $match: {
+          $or: [{ sender: req.user._id }, { recipient: req.user._id }]
+        }
+      },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $eq: ["$sender", req.user._id] },
+              "$recipient",
+              "$sender"
+            ]
+          },
+          lastMessage: { $first: "$$ROOT" },
+          unreadCount: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ["$recipient", req.user._id] }, { $eq: ["$read", false] }] },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      }
+    ]);
 
-      const partnerId = message.sender._id.toString() === req.user._id.toString() 
-        ? message.recipient._id.toString() 
-        : message.sender._id.toString();
-      
-      if (!conversations.has(partnerId)) {
-        conversations.set(partnerId, {
-          partner: message.sender._id.toString() === req.user._id.toString() ? message.recipient : message.sender,
-          lastMessage: message,
-          unread: 0
-        });
-      }
-      
-      if (!message.read && message.recipient._id.toString() === req.user._id.toString()) {
-        conversations.get(partnerId).unread += 1;
-      }
-    }
-    
-    res.json(Array.from(conversations.values()));
+    const populatedConversations = await User.populate(conversations, {
+      path: '_id',
+      select: 'anonymousName rarity'
+    });
+
+    const formatted = populatedConversations
+      .filter(conv => conv._id != null)
+      .map(conv => ({
+        partner: conv._id,
+        lastMessage: conv.lastMessage,
+        unread: conv.unreadCount
+      }))
+      .sort((a, b) => new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt));
+
+    res.json(formatted);
   } catch (error) {
     console.error('Get messages error:', error);
     res.status(500).json({ error: 'Failed to load messages' });
@@ -1421,7 +1433,7 @@ app.get('/api/messages/:userId', authenticate, async (req, res) => {
     
     // Clear global notifications for these specific read messages
     await Notification.updateMany(
-      { recipient: req.user._id, type: 'message', 'data.from': req.params.userId, read: false },
+      { recipient: req.user._id, type: 'message', 'data.from': new mongoose.Types.ObjectId(req.params.userId), read: false },
       { read: true }
     );
     

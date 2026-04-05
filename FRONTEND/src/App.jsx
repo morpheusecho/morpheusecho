@@ -1565,7 +1565,7 @@ const MessagesPage = () => {
       const token = localStorage.getItem('morpheus_token');
       fetch(`${SOCKET_URL}/api/users/${selectedUser}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json())
-        .then(data => setActiveUserProfile(data.user))
+        .then(data => setActiveUserProfile({ ...data.user, _id: data.user.id || data.user._id }))
         .catch(err => console.error(err));
     }
 
@@ -1580,9 +1580,21 @@ const MessagesPage = () => {
           if (Array.isArray(data)) setLocalMessages(data);
           
           // Clear the unread indicator for this conversation
-          setConversations(prev => prev.map(conv => 
-            conv.partner._id === selectedUser ? { ...conv, unread: 0 } : conv
-          ));
+          setConversations(prev => {
+            let clearedCount = 0;
+            const next = prev.map(conv => {
+              if (conv.partner._id === selectedUser && conv.unread > 0) {
+                clearedCount = conv.unread;
+                return { ...conv, unread: 0 };
+              }
+              return conv;
+            });
+            
+            if (clearedCount > 0 && setUnreadCount) {
+              setUnreadCount(curr => Math.max(0, curr - clearedCount));
+            }
+            return next;
+          });
         }
       } catch (err) {
         console.error('Failed to fetch messages:', err);
