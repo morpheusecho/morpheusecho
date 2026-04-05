@@ -799,7 +799,7 @@ app.post('/api/auth/signup', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
     
-    if (age < 18 || !ageVerified) {
+    if (!age || isNaN(age) || age < 18 || !ageVerified) {
       return res.status(400).json({ error: 'Must be 18+ to join' });
     }
     
@@ -849,8 +849,8 @@ app.post('/api/auth/signup', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Signup error:', error);
-    res.status(500).json({ error: 'Server error during signup' });
+    console.error('Signup error details:', error);
+    res.status(500).json({ error: `Server error: ${error.message || 'Database connection failed'}` });
   }
 });
 
