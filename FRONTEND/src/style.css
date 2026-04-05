@@ -194,7 +194,7 @@ html, body, #root {
   padding: 24px;
   margin-bottom: 20px;
        transition: all 0.01s cubic-bezier(0.4, 0, 0.2, 1);
-       border: 1px so
+       border: 1px solid rgba(255, 255, 255, 0.6);
        backdrop-filter: blur(12px);
 }
 
@@ -268,7 +268,7 @@ html, body, #root {
   transition: all 0.01s ease;
   color: var(--text-secondary);
 }
-{
+.reaction-btn.active {
   background: var(--accent-light);
   border-color: var(--accent-primary);
   color: var(--accent-primary);
@@ -336,6 +336,7 @@ html, body, #root {
   border-radius: 12px;
 }
 
+.nav-item:hover {
   background: #f1f5f9;
   color: var(--accent-primary);
 }
@@ -410,7 +411,7 @@ html, body, #root {
 }
 
 .sidebar-item:hover {
-  background: #f1f5f9-primary);
+  background: #f1f5f9;
 }
 
 .sidebar-item.active {
@@ -498,7 +499,8 @@ html, body, #root {
 
 .auth-tab.active {
   background: var(--accent-primary);
-  color: white;(124, 58, 237, 0.2);
+  color: white;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.2);
 }
 
 /* Input Fields */
@@ -531,7 +533,7 @@ html, body, #root {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
   background: white;
-
+}
 .input-field::placeholder {
   color: var(--text-muted);
 }
@@ -556,6 +558,7 @@ html, body, #root {
   box-shadow: var(--shadow-md);
 }
 
+.btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
@@ -578,7 +581,7 @@ html, body, #root {
 
 /* Profile Page */
 .profile-header {
-  background: rgb);
+  background: transparent;
   padding: 48px 24px;
   text-align: center;
   border-bottom: 1px solid rgba(226, 232, 240, 0.6);
@@ -686,7 +689,7 @@ html, body, #root {
 .badges-title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-sec
+  color: var(--text-secondary);
   letter-spacing: 0.05em;
   margin-bottom: 16px;
 }
@@ -977,7 +980,7 @@ html, body, #root {
   border-radius: 16px;
   margin-bottom: 12px;
   cursor: pointer;
-  transition: all 0.0gba(255, 255, 255, 0.6);
+  transition: all 0.01s ease;
   box-shadow: var(--shadow-sm);
 }
 
@@ -994,7 +997,8 @@ html, body, #root {
 .notification-icon {
   width: 40px;
   height: 40px;
-  border-radius: ight);
+  border-radius: 12px;
+  background: var(--accent-light);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1096,7 +1100,8 @@ html, body, #root {
   stroke: white;
   stroke-width: 3;
   stroke-linecap: round;
-  transform: rota
+  transform: rotate(-90deg);
+  transform-origin: center;
   transition: stroke-dashoffset 0.01s linear;
 }
 

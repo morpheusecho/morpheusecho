@@ -880,7 +880,7 @@ app.get('/api/feed', authenticate, async (req, res) => {
   try {
     const { category, sort = 'trending' } = req.query;
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
     const skip = (page - 1) * limit;
     
     let query = { 
@@ -1063,6 +1063,33 @@ app.get('/api/confessions/:id', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Get confession error:', error);
     res.status(500).json({ error: 'Failed to load confession' });
+  }
+});
+
+// Delete Confession
+app.delete('/api/confessions/:id', authenticate, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid confession ID' });
+    }
+
+    const confession = await Confession.findById(req.params.id);
+    if (!confession) {
+      return res.status(404).json({ error: 'Confession not found' });
+    }
+
+    if (confession.author.toString() !== req.user._id.toString() && !req.user.isAdmin) {
+      return res.status(403).json({ error: 'Not authorized to delete this confession' });
+    }
+
+    await Confession.findByIdAndDelete(req.params.id);
+    await User.findByIdAndUpdate(req.user._id, { $inc: { totalConfessions: -1 } });
+    await Comment.deleteMany({ confession: req.params.id });
+
+    res.json({ message: 'Confession deleted successfully' });
+  } catch (error) {
+    console.error('Delete confession error:', error);
+    res.status(500).json({ error: 'Failed to delete confession' });
   }
 });
 
@@ -1302,7 +1329,7 @@ app.get('/api/users/:id/confessions', authenticate, async (req, res) => {
     }
 
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
     const skip = (page - 1) * limit;
     
     const confessions = await Confession.find({ 
@@ -1575,6 +1602,25 @@ app.patch('/api/notifications/read-all', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Mark read error:', error);
     res.status(500).json({ error: 'Failed to mark notifications as read' });
+  }
+});
+
+// Mark Single Notification as Read
+app.patch('/api/notifications/:id/read', authenticate, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid notification ID' });
+    }
+    
+    await Notification.findOneAndUpdate(
+      { _id: req.params.id, recipient: req.user._id },
+      { read: true }
+    );
+    
+    res.json({ message: 'Notification marked as read' });
+  } catch (error) {
+    console.error('Mark read error:', error);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
   }
 });
 
