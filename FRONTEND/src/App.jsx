@@ -420,7 +420,7 @@ const FollowButton = ({ userId, initialFollowing, onFollowChange }) => {
         return nextState;
       });
       setLoading(false);
-    }, 150);
+    }, 30);
   };
 
   return (
@@ -518,7 +518,7 @@ const ConfessionCard = ({ confession, onDelete }) => {
     holdTimeoutRef.current = setTimeout(() => {
       const interval = setInterval(() => {
         setHoldProgress(prev => {
-          const newProgress = prev + 8;
+          const newProgress = prev + 25;
           if (newProgress >= 100) {
             clearInterval(interval);
             setIsRevealed(true);
@@ -529,7 +529,7 @@ const ConfessionCard = ({ confession, onDelete }) => {
         });
       }, 16);
       progressInterval.current = interval;
-    }, 100);
+    }, 20);
   };
 
   const handleHoldEnd = () => {
@@ -677,7 +677,7 @@ const ConfessionCard = ({ confession, onDelete }) => {
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.1 }}
+      transition={{ duration: 0.02 }}
       className={`confession-card ${getRarityFrameClass(confession.author?.rarity)}`}
     >
       <div className="card-header">
@@ -963,7 +963,7 @@ const LoginPage = () => {
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.1 }}
+        transition={{ duration: 0.02 }}
         className="auth-card"
       >
         <div className="auth-logo">
@@ -1038,7 +1038,7 @@ const IdentityRevealPage = () => {
 
   useEffect(() => {
     if (isRevealed) {
-      const timer = setTimeout(() => navigate('/'), 1500);
+      const timer = setTimeout(() => navigate('/'), 300);
       return () => clearTimeout(timer);
     }
   }, [isRevealed, navigate]);
@@ -1057,7 +1057,7 @@ const IdentityRevealPage = () => {
     holdTimeoutRef.current = setTimeout(() => {
       const interval = setInterval(() => {
         setHoldProgress(prev => {
-          const newProgress = prev + 8;
+          const newProgress = prev + 25;
           if (newProgress >= 100) {
             clearInterval(interval);
             setIsRevealed(true);
@@ -1067,7 +1067,7 @@ const IdentityRevealPage = () => {
         });
       }, 16);
       progressInterval.current = interval;
-    }, 100);
+    }, 20);
   };
 
   const handleHoldEnd = () => {
@@ -2331,7 +2331,7 @@ const AppLayout = ({ children }) => {
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -5 }}
-            transition={{ duration: 0.08, ease: "easeInOut" }}
+            transition={{ duration: 0.02, ease: "easeInOut" }}
             className="page-container"
           >
             {children}
