@@ -13,8 +13,27 @@
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- Custom CSS -->
-  <link rel="stylesheet" href="./style.css">
+  <!-- Tailwind CSS (CDN - for quick fix) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            'echo-bg': '#0a0a0f',
+            'echo-surface': '#11111f',
+            'echo-card': '#1a1a2e',
+            'echo-accent': '#7c3aed',
+            'echo-accent-light': '#a855f7',
+          },
+          fontFamily: {
+            'display': ['Cinzel', 'serif'],
+          }
+        }
+      }
+    }
+  </script>
   
   <style>
     * {
@@ -72,6 +91,125 @@
       -webkit-text-fill-color: transparent;
       letter-spacing: 0.2em;
     }
+    
+    /* Rarity Frames */
+    .frame-mythic { border: 2px solid #ff00ff; box-shadow: 0 0 20px rgba(255,0,255,0.5); }
+    .frame-legendary { border: 2px solid #ffd700; box-shadow: 0 0 15px rgba(255,215,0,0.4); }
+    .frame-exclusive { border: 2px solid #00ffff; box-shadow: 0 0 12px rgba(0,255,255,0.3); }
+    .frame-rare { border: 2px solid #c9a84c; }
+    .frame-uncommon { border: 1px solid #c0c0c0; }
+    .frame-common { border: 1px solid rgba(156,163,175,0.3); }
+    
+    /* Rarity Text */
+    .text-mythic { color: #ff00ff; text-shadow: 0 0 5px #ff00ff; }
+    .text-legendary { color: #ffd700; text-shadow: 0 0 5px #ffd700; }
+    .text-exclusive { color: #00ffff; text-shadow: 0 0 3px #00ffff; }
+    .text-rare { color: #c9a84c; }
+    .text-uncommon { color: #c0c0c0; }
+    .text-common { color: #9ca3af; }
+    
+    /* Follow Button */
+    .follow-btn {
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      padding: 8px 20px;
+      border-radius: 9999px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      border: none;
+      color: white;
+    }
+    .follow-btn.following {
+      background: transparent;
+      border: 2px solid #7c3aed;
+      color: #7c3aed;
+    }
+    .follow-btn:hover { transform: scale(1.05); }
+    
+    /* Confession Card */
+    .confession-card {
+      background: #1a1a2e;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      transition: all 0.3s;
+    }
+    .confession-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(124,58,237,0.2); }
+    
+    /* Reaction Buttons */
+    .reaction-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(45,45,68,0.5);
+      border-radius: 9999px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .reaction-btn.active { background: rgba(124,58,237,0.2); border: 1px solid #7c3aed; }
+    
+    /* Bottom Navigation */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(17,17,31,0.95);
+      backdrop-filter: blur(20px);
+      display: flex;
+      justify-content: space-around;
+      padding: 12px;
+      z-index: 100;
+    }
+    .nav-item.active { color: #7c3aed; }
+    
+    /* Auth Container */
+    .auth-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0a0a0f;
+      padding: 20px;
+    }
+    .auth-card {
+      background: #11111f;
+      border-radius: 24px;
+      padding: 40px;
+      max-width: 450px;
+      width: 100%;
+      border: 1px solid rgba(124,58,237,0.2);
+    }
+    
+    /* Input Fields */
+    .input-field {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(26,26,46,0.8);
+      border: 1px solid rgba(124,58,237,0.2);
+      border-radius: 12px;
+      color: white;
+    }
+    .input-field:focus { outline: none; border-color: #7c3aed; }
+    
+    /* Buttons */
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      color: white;
+    }
+    .btn-primary:hover { transform: translateY(-2px); }
+    
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1a1a2e; }
+    ::-webkit-scrollbar-thumb { background: #7c3aed; border-radius: 3px; }
   </style>
 </head>
 <body>
@@ -83,20 +221,33 @@
   <div id="root"></div>
   
   <script>
-    // Hide loading screen when page loads
-    window.addEventListener('load', function() {
-      setTimeout(function() {
-        var loader = document.getElementById('loading-screen');
-        if (loader) {
-          loader.style.opacity = '0';
-          setTimeout(function() {
-            loader.style.display = 'none';
-          }, 500);
-        }
-      }, 1000);
-    });
+    // Hide loading screen after 1 second
+    setTimeout(function() {
+      var loader = document.getElementById('loading-screen');
+      if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(function() {
+          loader.style.display = 'none';
+        }, 500);
+      }
+    }, 1000);
   </script>
   
-  <script type="module" src="/src/main.jsx"></script>
+  <!-- React and ReactDOM -->
+  <script src="https://unpkg.com/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  
+  <!-- React Router -->
+  <script src="https://unpkg.com/react-router-dom@6.20.0/umd/react-router-dom.development.js"></script>
+  
+  <!-- Babel for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Socket.IO -->
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  
+  <!-- App Component -->
+  <script type="text/babel" src="./src/App.jsx"></script>
+  <script src="./main.js"></script>
 </body>
 </html>
