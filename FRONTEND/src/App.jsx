@@ -303,30 +303,31 @@ const AuthProvider = ({ children }) => {
 const PeacefulBackground = () => {
   const particles = useMemo(() => {
     const colors = ['#fecdd3', '#bfdbfe', '#bbf7d0', '#fef08a', '#ffedd5']; // Pink, Blue, Green, Yellow, Peach
-    return Array.from({ length: 18 }).map((_, i) => ({
+    // Reduced particle count from 18 to 6 and simplified movement to drastically improve UI performance
+    return Array.from({ length: 6 }).map((_, i) => ({
       id: i,
       color: colors[i % colors.length],
       size: Math.random() * 250 + 150,
       left: Math.random() * 100,
       top: Math.random() * 100,
-      xMove: Math.random() * 80 - 40,
-      yMove: Math.random() * 80 - 40,
-      duration: Math.random() * 5 + 5
+      xMove: Math.random() * 40 - 20,
+      yMove: Math.random() * 40 - 20,
+      duration: Math.random() * 10 + 10
     }));
   }, []);
 
   return (
-    <div className="peaceful-bg">
+    <div className="peaceful-bg fixed inset-0 overflow-hidden pointer-events-none z-[-1]">
       {particles.map(p => (
         <motion.div
           key={p.id}
-          className="absolute rounded-full mix-blend-multiply filter blur-[60px] opacity-60"
+          className="absolute rounded-full opacity-40 blur-[40px]"
           style={{ backgroundColor: p.color, width: `${p.size}px`, height: `${p.size}px`, left: `${p.left}vw`, top: `${p.top}vh` }}
-          animate={{ x: [0, p.xMove, 0], y: [0, p.yMove, 0], scale: [1, 1.1, 1] }}
+          animate={{ x: [0, p.xMove, 0], y: [0, p.yMove, 0] }}
           transition={{ duration: p.duration, repeat: Infinity, ease: "easeInOut" }}
         />
       ))}
-      <div className="absolute inset-0 bg-white/30 backdrop-blur-[50px] z-0"></div>
+      <div className="absolute inset-0 bg-white/40 z-0"></div>
     </div>
   );
 };
@@ -2084,6 +2085,9 @@ const NotificationsPage = () => {
 // =============================================================================
 // PROFILE PAGE (WITH FOLLOW BUTTON)
 // =============================================================================
+const DATA_CACHE = { profile: null, profileConfessions: [] };
+const updateCache = (key, data) => { DATA_CACHE[key] = data; };
+
 const ProfilePage = () => {
   const { id } = useParams();
   const { user: currentUser } = useAuth();
