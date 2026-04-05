@@ -359,6 +359,7 @@ io.on('connection', (socket) => {
       await message.save();
 
       const sender = await User.findById(from);
+      if (!sender) return; // Prevent crash if sender no longer exists
       
       // Save the persistent notification for the recipient
       const notification = new Notification({
@@ -653,7 +654,7 @@ async function awardXP(userId, amount, reason) {
   if (!user) return null;
   
   const oldLevel = user.level;
-  user.xp += amount;
+  user.xp = Math.max(0, user.xp + amount); // Protect against negative XP bounds
   
   const levelInfo = calculateLevel(user.xp);
   user.level = levelInfo.level;
@@ -1115,6 +1116,10 @@ app.post('/api/confessions/:id/react', authenticate, async (req, res) => {
     if (userIndex > -1) {
       reactionArray.splice(userIndex, 1);
       action = 'removed';
+      
+      // PREVENT XP FARMING: Deduct XP and total reactions when un-reacting
+      await awardXP(confession.author, -XP_REWARDS.RECEIVE_REACTION, 'REMOVE_REACTION');
+      await User.findByIdAndUpdate(confession.author, { $inc: { totalReactions: -1 } });
     } else {
       reactionArray.push(req.user._id);
       action = 'added';
@@ -1392,6 +1397,9 @@ app.get('/api/messages', authenticate, async (req, res) => {
     const conversations = new Map();
     
     for (const message of messages) {
+      // Prevent inbox crash if sender or recipient account was deleted from DB
+      if (!message.sender || !message.recipient) continue;
+
       const partnerId = message.sender._id.toString() === req.user._id.toString() 
         ? message.recipient._id.toString() 
         : message.sender._id.toString();

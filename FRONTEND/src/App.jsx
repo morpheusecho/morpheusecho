@@ -326,6 +326,7 @@ const SocketProvider = ({ children }) => {
       newSocket.on('comment_notification', incUnread);
       newSocket.on('follow_notification', incUnread);
       newSocket.on('level_up', incUnread);
+      newSocket.on('new_message', incUnread);
 
       return () => newSocket.disconnect();
     }
@@ -425,6 +426,11 @@ const ConfessionCard = ({ confession }) => {
   const [holdProgress, setHoldProgress] = useState(0);
   const [localReactions, setLocalReactions] = useState(confession.reactions);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [localCommentCount, setLocalCommentCount] = useState(confession.commentCount);
   const progressInterval = useRef(null);
   const holdTimeoutRef = useRef(null);
   const audioRef = useRef(null);
@@ -525,6 +531,55 @@ const ConfessionCard = ({ confession }) => {
     setIsPlaying(!isPlaying);
   };
 
+  const toggleComments = async (e) => {
+    e.stopPropagation();
+    if (!showComments) {
+      setShowComments(true);
+      setLoadingComments(true);
+      try {
+        const token = localStorage.getItem('morpheus_token');
+        const res = await fetch(`${SOCKET_URL}/api/confessions/${confession._id}/comments`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) setComments(await res.json());
+      } catch (err) {
+        console.error('Comments error:', err);
+      } finally {
+        setLoadingComments(false);
+      }
+    } else {
+      setShowComments(false);
+    }
+  };
+
+  const handleCommentSubmit = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+
+    const optimisticComment = {
+      _id: Date.now().toString(),
+      content: newComment,
+      authorName: user?.anonymousName || 'You',
+      author: { _id: user?.id || user?._id, rarity: user?.rarity },
+      createdAt: new Date().toISOString()
+    };
+
+    setComments([optimisticComment, ...comments]);
+    setLocalCommentCount(prev => prev + 1);
+    setNewComment('');
+
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      await fetch(`${SOCKET_URL}/api/confessions/${confession._id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ content: optimisticComment.content })
+      });
+    } catch (err) {
+      console.error('Submit comment error:', err);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -614,15 +669,60 @@ const ConfessionCard = ({ confession }) => {
           ))}
         </div>
         <div className="action-buttons">
-          <button className="action-btn" title="Comments" onClick={(e) => e.stopPropagation()}>
+          <button className="action-btn" title="Comments" onClick={toggleComments}>
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            {confession.commentCount > 0 && <span>{confession.commentCount}</span>}
+            {localCommentCount > 0 && <span>{localCommentCount}</span>}
           </button>
           <button className="action-btn" title="Share" onClick={(e) => e.stopPropagation()}>
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           </button>
         </div>
       </div>
+      
+      <AnimatePresence>
+        {showComments && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.2)] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <form onSubmit={handleCommentSubmit} className="flex gap-2 mb-4">
+              <input
+                type="text"
+                placeholder="Add a whisper..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                className="flex-1 bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.4)] rounded-full px-4 py-2 text-sm focus:outline-none focus:border-[var(--accent-primary)]"
+              />
+              <button type="submit" disabled={!newComment.trim()} className="bg-[var(--accent-primary)] text-white p-2 rounded-full disabled:opacity-50">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </form>
+            <div className="space-y-3 max-h-60 overflow-y-auto hide-scrollbar">
+              {loadingComments ? (
+                <div className="text-center text-xs text-[var(--text-muted)] py-2">Loading whispers...</div>
+              ) : comments.length > 0 ? (
+                comments.map(comment => (
+                  <div key={comment._id} className="flex gap-3">
+                    <AuthorOrb rarity={comment.author?.rarity} size={28} />
+                    <div className="flex-1 bg-[var(--bg-hover)] rounded-2xl rounded-tl-none p-3 text-sm">
+                      <div className="flex justify-between items-baseline mb-1">
+                        <span className={`font-semibold text-xs ${getRarityTextClass(comment.author?.rarity)}`}>{comment.authorName}</span>
+                        <span className="text-[10px] text-[var(--text-muted)]">{formatRelativeTime(comment.createdAt)}</span>
+                      </div>
+                      <p className="text-[var(--text-primary)]">{comment.content}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center text-xs text-[var(--text-muted)] py-2">No whispers yet. Be the first.</div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
@@ -1348,9 +1448,20 @@ const MessagesPage = () => {
   const [newMessage, setNewMessage] = useState('');
   const [localMessages, setLocalMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
+  const [activeUserProfile, setActiveUserProfile] = useState(null);
   const messagesEndRef = useRef(null);
   const { user } = useAuth();
   const { socket } = useSocket() || {};
+  const location = useLocation();
+
+  // Handle deep link to specific user
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const toUser = searchParams.get('to');
+    if (toUser) {
+      setSelectedUser(toUser);
+    }
+  }, [location.search]);
 
   useEffect(() => {
     const fetchConversations = async () => {
@@ -1371,6 +1482,18 @@ const MessagesPage = () => {
   useEffect(() => {
     if (!selectedUser) return;
     
+    // Set active user profile for header
+    const existingConv = conversations.find(c => c.partner._id === selectedUser);
+    if (existingConv) {
+      setActiveUserProfile(existingConv.partner);
+    } else {
+      const token = localStorage.getItem('morpheus_token');
+      fetch(`${SOCKET_URL}/api/users/${selectedUser}`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(res => res.json())
+        .then(data => setActiveUserProfile(data.user))
+        .catch(err => console.error(err));
+    }
+
     const fetchMessages = async () => {
       try {
         const token = localStorage.getItem('morpheus_token');
@@ -1436,16 +1559,7 @@ const MessagesPage = () => {
     const msgContent = newMessage.trim();
     const timestamp = new Date().toISOString();
     
-    // Emit to real-time socket
-    if (socket) {
-      socket.emit('send_message', {
-        to: selectedUser,
-        content: msgContent,
-        from: currentUserId
-      });
-    }
-    
-    // Optimistic UI update for the sender
+    // Optimistic UI update
     setLocalMessages(prev => [...prev, {
       _id: Date.now().toString(),
       sender: { _id: currentUserId },
@@ -1454,15 +1568,28 @@ const MessagesPage = () => {
       read: true
     }]);
 
-    // Update the sidebar preview instantly
-    setConversations(prev => prev.map(c => 
-      c.partner._id === selectedUser ? {
-        ...c,
-        lastMessage: { content: msgContent, createdAt: timestamp }
-      } : c
-    ));
+    setConversations(prev => {
+      const exists = prev.find(c => c.partner._id === selectedUser);
+      if (exists) {
+        return prev.map(c => c.partner._id === selectedUser ? { ...c, lastMessage: { content: msgContent, createdAt: timestamp } } : c);
+      } else if (activeUserProfile) {
+        return [{ partner: activeUserProfile, lastMessage: { content: msgContent, createdAt: timestamp }, unread: 0 }, ...prev];
+      }
+      return prev;
+    });
     
     setNewMessage('');
+
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      fetch(`${SOCKET_URL}/api/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ to: selectedUser, content: msgContent })
+      });
+    } catch (err) {
+      console.error('Failed to send message via API:', err);
+    }
   };
 
   return (
@@ -1492,8 +1619,8 @@ const MessagesPage = () => {
             <button className="back-btn mobile-only" onClick={() => setSelectedUser(null)}>
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
-            <AuthorOrb rarity={conversations.find(c => c.partner._id === selectedUser)?.partner.rarity} size={36} />
-          <span className="font-semibold text-[var(--text-primary)]">{conversations.find(c => c.partner._id === selectedUser)?.partner.anonymousName}</span>
+            <AuthorOrb rarity={activeUserProfile?.rarity} size={36} />
+          <span className="font-semibold text-[var(--text-primary)]">{activeUserProfile?.anonymousName || 'User'}</span>
           </div>
 
           <div className="chat-messages">
@@ -1666,6 +1793,11 @@ const ProfilePage = () => {
   const xpPercent = profile ? ((profile.xp % 100) / 100) * 100 : 0;
 
   const handleFollowChange = async (newStatus) => {
+    setProfile(prev => ({
+      ...prev,
+      followers: newStatus ? prev.followers + 1 : Math.max(0, prev.followers - 1),
+      isFollowing: newStatus
+    }));
     try {
       const token = localStorage.getItem('morpheus_token');
       await fetch(`${SOCKET_URL}/api/users/${targetId}/follow`, {
@@ -1756,10 +1888,10 @@ const AppLayout = ({ children }) => {
         <AnimatePresence mode="wait">
           <motion.div 
             key={location.pathname}
-            initial={{ opacity: 0, y: 15 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.3 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.15 }}
             className="page-container"
           >
             {children}
