@@ -373,6 +373,7 @@ io.on('connection', (socket) => {
       io.to(`user_${to}`).emit('new_message', {
         from: sender.anonymousName,
         fromId: from,
+        rarity: sender.rarity,
         content,
         timestamp: message.createdAt,
         messageId: message._id
@@ -1434,7 +1435,10 @@ app.get('/api/messages/:userId', authenticate, async (req, res) => {
       ]
     })
       .populate('sender', 'anonymousName rarity')
-      .sort({ createdAt: 1 });
+      .sort({ createdAt: -1 })
+      .limit(100); // Prevent crashing on huge chat histories
+      
+    messages.reverse(); // Flip back to chronological order for the UI
     
     // Mark as read
     await Message.updateMany(
@@ -1460,6 +1464,10 @@ app.post('/api/messages', authenticate, async (req, res) => {
     
     if (content.length > 500) {
       return res.status(400).json({ error: 'Message too long (max 500 chars)' });
+    }
+    
+    if (to === req.user._id.toString()) {
+      return res.status(400).json({ error: 'Cannot send messages to yourself' });
     }
     
     const recipient = await User.findById(to);
@@ -1489,6 +1497,7 @@ app.post('/api/messages', authenticate, async (req, res) => {
     io.to(`user_${to}`).emit('new_message', {
       from: req.user.anonymousName,
       fromId: req.user._id,
+      rarity: req.user.rarity,
       content,
       timestamp: message.createdAt,
       messageId: message._id

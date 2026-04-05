@@ -673,6 +673,11 @@ const ConfessionCard = ({ confession }) => {
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             {localCommentCount > 0 && <span>{localCommentCount}</span>}
           </button>
+          {user && confession.author?._id !== (user?.id || user?._id) && (
+            <Link to={`/messages?to=${confession.author?._id}`} className="action-btn" title="Anonymous Message" onClick={(e) => e.stopPropagation()}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            </Link>
+          )}
           <button className="action-btn" title="Share" onClick={(e) => e.stopPropagation()}>
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           </button>
@@ -1451,7 +1456,7 @@ const MessagesPage = () => {
   const [activeUserProfile, setActiveUserProfile] = useState(null);
   const messagesEndRef = useRef(null);
   const { user } = useAuth();
-  const { socket } = useSocket() || {};
+  const { socket, setUnreadCount } = useSocket() || {};
   const location = useLocation();
 
   // Handle deep link to specific user
@@ -1552,7 +1557,7 @@ const MessagesPage = () => {
     return () => socket.off('new_message', handleNewMessage);
   }, [socket, selectedUser]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!newMessage.trim() || !selectedUser) return;
     
     const currentUserId = user?.id || user?._id || 'demo123';
@@ -1565,24 +1570,27 @@ const MessagesPage = () => {
       sender: { _id: currentUserId },
       content: msgContent,
       createdAt: timestamp,
-      read: true
+      read: false
     }]);
 
     setConversations(prev => {
+      let updatedList;
       const exists = prev.find(c => c.partner._id === selectedUser);
       if (exists) {
-        return prev.map(c => c.partner._id === selectedUser ? { ...c, lastMessage: { content: msgContent, createdAt: timestamp } } : c);
+        updatedList = prev.map(c => c.partner._id === selectedUser ? { ...c, lastMessage: { content: msgContent, createdAt: timestamp } } : c);
       } else if (activeUserProfile) {
-        return [{ partner: activeUserProfile, lastMessage: { content: msgContent, createdAt: timestamp }, unread: 0 }, ...prev];
+        updatedList = [{ partner: activeUserProfile, lastMessage: { content: msgContent, createdAt: timestamp }, unread: 0 }, ...prev];
+      } else {
+        updatedList = prev;
       }
-      return prev;
+      return updatedList.sort((a, b) => new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt));
     });
     
     setNewMessage('');
 
     try {
       const token = localStorage.getItem('morpheus_token');
-      fetch(`${SOCKET_URL}/api/messages`, {
+      await fetch(`${SOCKET_URL}/api/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ to: selectedUser, content: msgContent })
@@ -1624,10 +1632,10 @@ const MessagesPage = () => {
           </div>
 
           <div className="chat-messages">
-            {localMessages.filter(msg => msg.sender._id === selectedUser || msg.sender._id === (user?.id || user?._id || 'demo123')).map((msg, idx) => (
-              <div key={msg._id || idx} className={`message-bubble ${msg.sender._id === selectedUser ? 'received' : 'sent'}`}>
+            {localMessages.filter(msg => msg.sender?._id === selectedUser || msg.sender?._id === (user?.id || user?._id || 'demo123')).map((msg, idx) => (
+              <div key={msg._id || idx} className={`message-bubble ${msg.sender?._id === selectedUser ? 'received' : 'sent'}`}>
                 <p>{msg.content}</p>
-                <p className="message-time">{formatRelativeTime(msg.createdAt)}{msg.sender._id !== selectedUser && <span className="ml-2">{msg.read ? '✓✓' : '✓'}</span>}</p>
+                <p className="message-time">{formatRelativeTime(msg.createdAt)}{msg.sender?._id !== selectedUser && <span className="ml-2">{msg.read ? '✓✓' : '✓'}</span>}</p>
               </div>
             ))}
             <div ref={messagesEndRef} />
