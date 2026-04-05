@@ -1718,6 +1718,14 @@ async function startServer() {
     await mongoose.connect(CONFIG.MONGODB_URI);
     console.log('✅ Connected to MongoDB');
     
+    // Clean up ghost indexes from older schema versions
+    try {
+      await mongoose.connection.collection('users').dropIndex('anonymousIdentity.full_1');
+      console.log('🧹 Cleaned up old anonymousIdentity index');
+    } catch (err) {
+      // Index might not exist or already be dropped, safely ignore
+    }
+    
     server.listen(CONFIG.PORT, () => {
       console.log(`🚀 Morpheus Echo server running on port ${CONFIG.PORT}`);
       console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
