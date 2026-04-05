@@ -906,7 +906,7 @@ app.get('/api/feed', authenticate, async (req, res) => {
     }
     
     let confessions = await Confession.find(query)
-      .populate('author', 'anonymousName rarity level title')
+      .populate('author', 'anonymousName rarity level title avatarUrl')
       .sort(sortOption)
       .skip(skip)
       .limit(limit)
@@ -1045,10 +1045,10 @@ app.get('/api/confessions/:id', authenticate, async (req, res) => {
     }
 
     const confession = await Confession.findById(req.params.id)
-      .populate('author', 'anonymousName rarity level title')
+      .populate('author', 'anonymousName rarity level title avatarUrl')
       .populate({
         path: 'comments',
-        populate: { path: 'author', select: 'anonymousName rarity level' }
+        populate: { path: 'author', select: 'anonymousName rarity level avatarUrl' }
       });
     
     if (!confession) {
@@ -1143,10 +1143,10 @@ app.get('/api/confessions/:id/comments', authenticate, async (req, res) => {
     }
 
     const comments = await Comment.find({ confession: req.params.id, parentComment: null })
-      .populate('author', 'anonymousName rarity level')
+      .populate('author', 'anonymousName rarity level avatarUrl')
       .populate({
         path: 'replies',
-        populate: { path: 'author', select: 'anonymousName rarity level' }
+        populate: { path: 'author', select: 'anonymousName rarity level avatarUrl' }
       })
       .sort({ createdAt: -1 });
     
@@ -1309,7 +1309,7 @@ app.get('/api/users/:id/confessions', authenticate, async (req, res) => {
       author: req.params.id, 
       isHidden: false 
     })
-      .populate('author', 'anonymousName rarity level title')
+      .populate('author', 'anonymousName rarity level title avatarUrl')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -1402,8 +1402,8 @@ app.get('/api/messages', authenticate, async (req, res) => {
     const messages = await Message.find({
       $or: [{ sender: req.user._id }, { recipient: req.user._id }]
     })
-      .populate('sender', 'anonymousName rarity')
-      .populate('recipient', 'anonymousName rarity')
+      .populate('sender', 'anonymousName rarity avatarUrl')
+      .populate('recipient', 'anonymousName rarity avatarUrl')
       .sort({ createdAt: -1 })
       .limit(1000); // Prevents catastrophic memory limit exceptions for heavy users
     
@@ -1447,7 +1447,7 @@ app.get('/api/messages/:userId', authenticate, async (req, res) => {
         { sender: req.params.userId, recipient: req.user._id }
       ]
     })
-      .populate('sender', 'anonymousName rarity')
+      .populate('sender', 'anonymousName rarity avatarUrl')
       .sort({ createdAt: -1 })
       .limit(100); // Prevent crashing on huge chat histories
       
@@ -1520,6 +1520,7 @@ app.post('/api/messages', authenticate, async (req, res) => {
       from: req.user.anonymousName,
       fromId: req.user._id,
       rarity: req.user.rarity,
+      avatarUrl: req.user.avatarUrl,
       content,
       timestamp: message.createdAt,
       messageId: message._id
@@ -1600,7 +1601,7 @@ app.get('/api/radio', authenticate, async (req, res) => {
     }
     
     const confessions = await Confession.find(query)
-      .populate('author', 'anonymousName rarity level title')
+      .populate('author', 'anonymousName rarity level title avatarUrl')
       .sort({ createdAt: -1 })
       .limit(20);
     
@@ -1641,7 +1642,7 @@ app.get('/api/confessions/random', authenticate, async (req, res) => {
     const random = Math.floor(Math.random() * count);
     
     const confession = await Confession.findOne(query)
-      .populate('author', 'anonymousName rarity level title')
+      .populate('author', 'anonymousName rarity level title avatarUrl')
       .skip(random);
     
     if (confession) {

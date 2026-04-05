@@ -208,6 +208,21 @@ const getRarityOrbClass = (rarity) => {
 const getCategoryClass = (categoryId) => `cat-${categoryId}`;
 
 // =============================================================================
+// GLOBAL MEMORY CACHE (Stale-While-Revalidate for Lightning Fast Navigation)
+// =============================================================================
+const DATA_CACHE = {
+  feed: null,
+  feedCategory: 'all',
+  feedSort: 'trending',
+  feedPage: 1,
+  feedHasMore: true,
+  conversations: null,
+  notifications: null,
+  profile: null,
+  profileConfessions: null
+};
+
+// =============================================================================
 // AUTH CONTEXT
 // =============================================================================
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -311,7 +326,7 @@ const PeacefulBackground = () => {
       top: Math.random() * 100,
       xMove: Math.random() * 80 - 40,
       yMove: Math.random() * 80 - 40,
-      duration: Math.random() * 20 + 25
+      duration: Math.random() * 5 + 5
     }));
   }, []);
 
@@ -420,7 +435,7 @@ const FollowButton = ({ userId, initialFollowing, onFollowChange }) => {
         return nextState;
       });
       setLoading(false);
-    }, 30);
+    }, 10);
   };
 
   return (
@@ -518,7 +533,7 @@ const ConfessionCard = ({ confession, onDelete }) => {
     holdTimeoutRef.current = setTimeout(() => {
       const interval = setInterval(() => {
         setHoldProgress(prev => {
-          const newProgress = prev + 25;
+          const newProgress = prev + 50;
           if (newProgress >= 100) {
             clearInterval(interval);
             setIsRevealed(true);
@@ -529,7 +544,7 @@ const ConfessionCard = ({ confession, onDelete }) => {
         });
       }, 16);
       progressInterval.current = interval;
-    }, 20);
+    }, 10);
   };
 
   const handleHoldEnd = () => {
@@ -677,7 +692,7 @@ const ConfessionCard = ({ confession, onDelete }) => {
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.02 }}
+      transition={{ duration: 0.01 }}
       className={`confession-card ${getRarityFrameClass(confession.author?.rarity)}`}
     >
       <div className="card-header">
@@ -963,7 +978,7 @@ const LoginPage = () => {
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.02 }}
+        transition={{ duration: 0.01 }}
         className="auth-card"
       >
         <div className="auth-logo">
@@ -1038,7 +1053,7 @@ const IdentityRevealPage = () => {
 
   useEffect(() => {
     if (isRevealed) {
-      const timer = setTimeout(() => navigate('/'), 300);
+      const timer = setTimeout(() => navigate('/'), 100);
       return () => clearTimeout(timer);
     }
   }, [isRevealed, navigate]);
@@ -1057,7 +1072,7 @@ const IdentityRevealPage = () => {
     holdTimeoutRef.current = setTimeout(() => {
       const interval = setInterval(() => {
         setHoldProgress(prev => {
-          const newProgress = prev + 25;
+          const newProgress = prev + 50;
           if (newProgress >= 100) {
             clearInterval(interval);
             setIsRevealed(true);
@@ -1067,7 +1082,7 @@ const IdentityRevealPage = () => {
         });
       }, 16);
       progressInterval.current = interval;
-    }, 20);
+    }, 10);
   };
 
   const handleHoldEnd = () => {
@@ -1130,24 +1145,32 @@ const IdentityRevealPage = () => {
 // HOME FEED PAGE
 // =============================================================================
 const HomePage = () => {
-  const [confessions, setConfessions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [sortBy, setSortBy] = useState('trending');
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState(DATA_CACHE.feedCategory || 'all');
+  const [sortBy, setSortBy] = useState(DATA_CACHE.feedSort || 'trending');
+  const [page, setPage] = useState(DATA_CACHE.feedPage || 1);
+  const [confessions, setConfessions] = useState(DATA_CACHE.feed || []);
+  const [hasMore, setHasMore] = useState(DATA_CACHE.feedHasMore !== false);
+  const [loading, setLoading] = useState(!DATA_CACHE.feed);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   useEffect(() => {
-    setPage(1);
-    setConfessions([]);
+    if (selectedCategory !== DATA_CACHE.feedCategory || sortBy !== DATA_CACHE.feedSort) {
+      setPage(1);
+      setConfessions([]);
+      setHasMore(true);
+    }
   }, [selectedCategory, sortBy]);
 
   useEffect(() => {
     let isActive = true;
     const fetchFeed = async () => {
-      if (page === 1) setLoading(true);
-      else setIsLoadingMore(true);
+      if (page === 1 && DATA_CACHE.feed && selectedCategory === DATA_CACHE.feedCategory && sortBy === DATA_CACHE.feedSort) {
+        setLoading(false);
+      } else if (page === 1) {
+        setLoading(true);
+      } else {
+        setIsLoadingMore(true);
+      }
       
       try {
         const token = localStorage.getItem('morpheus_token');
@@ -1161,10 +1184,19 @@ const HomePage = () => {
         
         if (page === 1) {
           setConfessions(data.confessions);
+          DATA_CACHE.feed = data.confessions;
+          DATA_CACHE.feedCategory = selectedCategory;
+          DATA_CACHE.feedSort = sortBy;
+          DATA_CACHE.feedPage = 1;
+          DATA_CACHE.feedHasMore = data.pagination.page < data.pagination.pages;
         } else {
           setConfessions(prev => {
             const uniqueNew = data.confessions.filter(newConf => !prev.some(p => p._id === newConf._id));
-            return [...prev, ...uniqueNew];
+            const combined = [...prev, ...uniqueNew];
+            DATA_CACHE.feed = combined;
+            DATA_CACHE.feedPage = page;
+            DATA_CACHE.feedHasMore = data.pagination.page < data.pagination.pages;
+            return combined;
           });
         }
         setHasMore(data.pagination.page < data.pagination.pages);
@@ -1177,8 +1209,10 @@ const HomePage = () => {
           setHasMore(false);
         }
       } finally {
-        setLoading(false);
-        setIsLoadingMore(false);
+        if (isActive) {
+          setLoading(false);
+          setIsLoadingMore(false);
+        }
       }
     };
     fetchFeed();
@@ -1187,6 +1221,7 @@ const HomePage = () => {
 
   const handleDeleteConfession = (id) => {
     setConfessions(prev => prev.filter(c => c._id !== id));
+    if (DATA_CACHE.feed) DATA_CACHE.feed = DATA_CACHE.feed.filter(c => c._id !== id);
   };
 
   return (
@@ -2180,6 +2215,10 @@ const ProfilePage = () => {
               const data = await res.json();
               setProfile(prev => ({ ...prev, avatarUrl: data.avatarUrl }));
               updateUser({ avatarUrl: data.avatarUrl });
+              setUserConfessions(prev => prev.map(conf => ({
+                ...conf,
+                author: { ...conf.author, avatarUrl: data.avatarUrl }
+              })));
             }
           } catch (err) {
             console.error('Upload request failed:', err);
@@ -2331,7 +2370,7 @@ const AppLayout = ({ children }) => {
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -5 }}
-            transition={{ duration: 0.02, ease: "easeInOut" }}
+            transition={{ duration: 0.01, ease: "easeInOut" }}
             className="page-container"
           >
             {children}

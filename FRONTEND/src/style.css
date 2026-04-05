@@ -57,8 +57,7 @@
   z-index: -1;
   background: linear-gradient(120deg, #ffe4e6, #fef9c3, #dcfce7, #e0f2fe, #ffedd5);
   background-size: 400% 400%;
-  animation: gradientDrift 25s ease infinite;
-  overflow: hidden;
+  animation: gradientDrift 
 }
 
 @keyframes gradientDrift {
@@ -164,9 +163,8 @@ html, body, #root {
   padding: 10px 24px;
   border-radius: 9999px;
   font-weight: 600;
-  transition: all 0.03s ease;
+  transition: all 0.01s ease;
   cursor: pointer;
-  border: none;
   color: white;
   box-shadow: 0 2px 8px rgba(124, 58, 237, 0.2);
 }
@@ -195,9 +193,8 @@ html, body, #root {
   border-radius: 20px;
   padding: 24px;
   margin-bottom: 20px;
-       transition: all 0.02s cubic-bezier(0.4, 0, 0.2, 1);
-       border: 1px solid rgba(255, 255, 255, 0.6);
-       box-shadow: var(--shadow-md);
+       transition: all 0.01s cubic-bezier(0.4, 0, 0.2, 1);
+       border: 1px so
        backdrop-filter: blur(12px);
 }
 
@@ -268,11 +265,10 @@ html, body, #root {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.02s ease;
+  transition: all 0.01s ease;
   color: var(--text-secondary);
 }
-
-.reaction-btn.active {
+{
   background: var(--accent-light);
   border-color: var(--accent-primary);
   color: var(--accent-primary);
@@ -291,12 +287,11 @@ html, body, #root {
 .blur-content {
   filter: blur(8px);
   opacity: 0.6;
-  transition: all 0.02s ease;
+  transition: all 0.01s ease;
   user-select: none;
 }
 .blur-content.revealed {
   filter: blur(0);
-  opacity: 1;
   user-select: auto;
 }
 .blur-overlay {
@@ -335,13 +330,12 @@ html, body, #root {
   color: var(--text-muted);
   text-decoration: none;
   font-size: 11px;
-  transition: all 0.02s ease;
+  transition: all 0.01s ease;
   position: relative;
   padding: 8px 12px;
   border-radius: 12px;
 }
 
-.nav-item:hover {
   background: #f1f5f9;
   color: var(--accent-primary);
 }
@@ -410,14 +404,13 @@ html, body, #root {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.02s ease;
+  transition: all 0.01s ease;
   margin-bottom: 4px;
   text-decoration: none;
 }
 
 .sidebar-item:hover {
-  background: #f1f5f9;
-  color: var(--accent-primary);
+  background: #f1f5f9-primary);
 }
 
 .sidebar-item.active {
@@ -499,14 +492,13 @@ html, body, #root {
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.02s ease;
+  transition: all 0.01s ease;
   border-radius: 12px;
 }
 
 .auth-tab.active {
   background: var(--accent-primary);
-  color: white;
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.2);
+  color: white;(124, 58, 237, 0.2);
 }
 
 /* Input Fields */
@@ -530,7 +522,7 @@ html, body, #root {
   border-radius: 14px;
   color: var(--text-primary);
   font-size: 15px;
-  transition: all 0.02s ease;
+  transition: all 0.01s ease;
   backdrop-filter: blur(8px);
 }
 
@@ -539,7 +531,6 @@ html, body, #root {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
   background: white;
-}
 
 .input-field::placeholder {
   color: var(--text-muted);
@@ -556,7 +547,7 @@ html, body, #root {
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.01s ease;
   margin-top: 8px;
 }
 
@@ -565,7 +556,6 @@ html, body, #root {
   box-shadow: var(--shadow-md);
 }
 
-.btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
@@ -579,7 +569,7 @@ html, body, #root {
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.02s ease;
+  transition: all 0.01s ease;
 }
 
 .category-pill:hover {
@@ -588,8 +578,7 @@ html, body, #root {
 
 /* Profile Page */
 .profile-header {
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(12px);
+  background: rgb);
   padding: 48px 24px;
   text-align: center;
   border-bottom: 1px solid rgba(226, 232, 240, 0.6);
@@ -655,7 +644,7 @@ html, body, #root {
   border-radius: 9999px;
   font-weight: 600;
   text-decoration: none;
-  transition: all 0.03s ease;
+  transition: all 0.01s ease;
 }
 
 .profile-btn.secondary:hover {
@@ -667,7 +656,6 @@ html, body, #root {
   margin-top: 24px;
   padding: 0 32px;
 }
-
 .xp-bar-label {
   display: flex;
   justify-content: space-between;
@@ -687,7 +675,7 @@ html, body, #root {
   height: 100%;
   background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
   border-radius: 9999px;
-  transition: width 0.03s ease;
+  transition: width 0.01s ease;
 }
 
 /* Badges */
@@ -698,8 +686,7 @@ html, body, #root {
 .badges-title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
+  color: var(--text-sec
   letter-spacing: 0.05em;
   margin-bottom: 16px;
 }
@@ -743,7 +730,7 @@ html, body, #root {
   position: absolute;
   border-radius: 50%;
   border: 1px solid rgba(59, 130, 246, 0.15);
-  animation: visualizerPulse 4s ease-in-out infinite;
+  animation: visualizerPulse 2s ease-in-out infinite;
 }
 
 .visualizer-ring:nth-child(1) { width: 200px; height: 200px; animation-delay: 0s; }
@@ -757,7 +744,6 @@ html, body, #root {
 }
 
 .radio-player {
-  position: relative;
   z-index: 10;
   text-align: center;
   background: rgba(255, 255, 255, 0.85);
@@ -778,7 +764,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: orbFloat 3s ease-in-out infinite;
+  animation: orbFloat 1.5s ease-in-out infinite;
 }
 
 @keyframes orbFloat {
@@ -788,11 +774,10 @@ html, body, #root {
 
 @keyframes mythicPulse {
   0%, 100% { box-shadow: 0 0 20px rgba(217, 70, 239, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(217, 70, 239, 0.5); }
+  50% { box-shadow: 0 0 40px rgba(217, 70, 239, 0.8); }
 }
 
 .radio-author {
-  font-size: 1.5rem;
   font-weight: 700;
   margin-bottom: 8px;
 }
@@ -803,7 +788,6 @@ html, body, #root {
   border-radius: 9999px;
   font-size: 12px;
   font-weight: 500;
-  margin-bottom: 24px;
 }
 
 .radio-controls {
@@ -824,7 +808,7 @@ html, body, #root {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.02s ease;
+  transition: all 0.01s ease;
 }
 
 .radio-btn:hover {
@@ -841,7 +825,6 @@ html, body, #root {
   color: white;
   box-shadow: var(--shadow-md);
 }
-
 /* Messages Page */
 .messages-container {
   display: flex;
@@ -863,7 +846,7 @@ html, body, #root {
   gap: 16px;
   padding: 16px;
   cursor: pointer;
-  transition: all 0.02s ease;
+  transition: all 0.01s ease;
   border-bottom: 1px solid #f1f5f9;
 }
 
@@ -881,7 +864,6 @@ html, body, #root {
   color: var(--text-primary);
 }
 
-.conversation-text {
   font-size: 13px;
   color: var(--text-muted);
   white-space: nowrap;
@@ -977,7 +959,7 @@ html, body, #root {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.02s ease;
+  transition: all 0.01s ease;
 }
 
 .chat-send-btn:hover {
@@ -995,8 +977,7 @@ html, body, #root {
   border-radius: 16px;
   margin-bottom: 12px;
   cursor: pointer;
-  transition: all 0.02s ease;
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  transition: all 0.0gba(255, 255, 255, 0.6);
   box-shadow: var(--shadow-sm);
 }
 
@@ -1013,8 +994,7 @@ html, body, #root {
 .notification-icon {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
-  background: var(--accent-light);
+  border-radius: ight);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1097,7 +1077,7 @@ html, body, #root {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.02s ease;
+  transition: all 0.01s ease;
 }
 
 .hold-to-reveal-btn:hover {
@@ -1116,8 +1096,7 @@ html, body, #root {
   stroke: white;
   stroke-width: 3;
   stroke-linecap: round;
-  transform: rotate(-90deg);
-  transform-origin: center;
+  transform: rota
   transition: stroke-dashoffset 0.01s linear;
 }
 
@@ -1148,7 +1127,7 @@ html, body, #root {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.02s ease;
+  transition: all 0.01s ease;
 }
 
 .play-btn:hover {
@@ -1169,7 +1148,6 @@ html, body, #root {
   border-radius: 2px;
   animation: waveformPulse 0.5s ease-in-out infinite;
 }
-
 @keyframes waveformPulse {
   0%, 100% { height: 15px; }
   50% { height: 30px; }
