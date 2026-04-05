@@ -345,48 +345,12 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('send_message', async (data) => {
-    try {
-      const { to, content, from } = data;
-      
-      const message = new Message({
-        sender: from,
-        recipient: to,
-        content,
-        read: false,
-        createdAt: new Date()
-      });
-      await message.save();
+  socket.on('typing_start', (data) => {
+    io.to(`user_${data.to}`).emit('typing_start', { fromId: data.from });
+  });
 
-      const sender = await User.findById(from);
-      if (!sender) return; // Prevent crash if sender no longer exists
-      
-      // Save the persistent notification for the recipient
-      const notification = new Notification({
-        recipient: to,
-        type: 'message',
-        message: `New whisper from ${sender.anonymousName}`,
-        data: { from: from, messageId: message._id }
-      });
-      await notification.save();
-      
-      io.to(`user_${to}`).emit('new_message', {
-        from: sender.anonymousName,
-        fromId: from,
-        rarity: sender.rarity,
-        content,
-        timestamp: message.createdAt,
-        messageId: message._id
-      });
-
-      io.to(`user_${to}`).emit('notification', {
-        type: 'message',
-        message: `New whisper from ${sender.anonymousName}`,
-        data: { from: from, messageId: message._id }
-      });
-    } catch (error) {
-      console.error('Message send error:', error);
-    }
+  socket.on('typing_end', (data) => {
+    io.to(`user_${data.to}`).emit('typing_end', { fromId: data.from });
   });
 
   socket.on('new_reaction', async (data) => {
@@ -926,7 +890,13 @@ app.get('/api/feed', authenticate, async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
     
-    let query = { isHidden: false, isExpired: false };
+    let query = { 
+      isHidden: false, 
+      $or: [
+        { expiryDate: null },
+        { expiryDate: { $gt: new Date() } }
+      ]
+    };
     
     if (category && category !== 'all') {
       query.categories = category;
@@ -942,12 +912,15 @@ app.get('/api/feed', authenticate, async (req, res) => {
       sortOption = { createdAt: -1 };
     }
     
-    const confessions = await Confession.find(query)
+    let confessions = await Confession.find(query)
       .populate('author', 'anonymousName rarity level title')
       .sort(sortOption)
       .skip(skip)
       .limit(limit)
       .lean();
+      
+    // Prevent crashing the feed if a user account was deleted
+    confessions = confessions.filter(c => c.author != null);
     
     // Update heat scores
     for (const confession of confessions) {
@@ -1446,6 +1419,17 @@ app.get('/api/messages/:userId', authenticate, async (req, res) => {
       { read: true }
     );
     
+    // Clear global notifications for these specific read messages
+    await Notification.updateMany(
+      { recipient: req.user._id, type: 'message', 'data.from': req.params.userId, read: false },
+      { read: true }
+    );
+    
+    // Emit real-time read receipt to the sender
+    io.to(`user_${req.params.userId}`).emit('messages_read', {
+      readBy: req.user._id.toString()
+    });
+
     res.json(messages);
   } catch (error) {
     console.error('Get conversation error:', error);
@@ -1567,7 +1551,10 @@ app.get('/api/radio', authenticate, async (req, res) => {
     let query = { 
       type: 'voice', 
       isHidden: false, 
-      isExpired: false 
+      $or: [
+        { expiryDate: null },
+        { expiryDate: { $gt: new Date() } }
+      ]
     };
     
     if (category && category !== 'all') {
@@ -1579,8 +1566,10 @@ app.get('/api/radio', authenticate, async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(20);
     
+    const validConfessions = confessions.filter(c => c.author != null);
+
     // Shuffle
-    const shuffled = confessions.sort(() => Math.random() - 0.5);
+    const shuffled = validConfessions.sort(() => Math.random() - 0.5);
     
     res.json({
       queue: shuffled,
@@ -1600,7 +1589,10 @@ app.get('/api/confessions/random', authenticate, async (req, res) => {
     let query = { 
       type: 'voice', 
       isHidden: false, 
-      isExpired: false 
+      $or: [
+        { expiryDate: null },
+        { expiryDate: { $gt: new Date() } }
+      ]
     };
     
     if (category && category !== 'all') {

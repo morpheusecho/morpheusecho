@@ -437,6 +437,17 @@ const ConfessionCard = ({ confession }) => {
   const waveformHeights = useMemo(() => Array.from({ length: 30 }).map(() => Math.random() * 30 + 10), [confession._id]);
 
   useEffect(() => {
+    const handleStopAudio = (e) => {
+      if (e.detail?.id !== confession._id && audioRef.current && isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    };
+    window.addEventListener('stop_all_audio', handleStopAudio);
+    return () => window.removeEventListener('stop_all_audio', handleStopAudio);
+  }, [confession._id, isPlaying]);
+
+  useEffect(() => {
     return () => {
       if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
       if (progressInterval.current) clearInterval(progressInterval.current);
@@ -526,6 +537,7 @@ const ConfessionCard = ({ confession }) => {
     if (isPlaying) {
       audioRef.current.pause();
     } else {
+      window.dispatchEvent(new CustomEvent('stop_all_audio', { detail: { id: confession._id } }));
       audioRef.current.play();
     }
     setIsPlaying(!isPlaying);
@@ -621,6 +633,7 @@ const ConfessionCard = ({ confession }) => {
         onMouseLeave={handleHoldEnd}
         onTouchStart={handleHoldStart}
         onTouchEnd={handleHoldEnd}
+        onTouchCancel={handleHoldEnd}
       >
         <div className={`blur-content ${isRevealed ? 'revealed' : ''}`}>
           {confession.type === 'text' ? (
@@ -750,7 +763,7 @@ const BottomNav = () => {
   return (
     <nav className="bottom-nav">
       {navItems.map((item) => (
-        <Link key={item.path} to={item.path} className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}>
+        <Link key={item.path} to={item.path} className={`nav-item ${location.pathname === item.path || (item.path === '/profile/me' && location.pathname.startsWith('/profile')) ? 'active' : ''}`}>
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             {item.icon === 'home' && <><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>}
             {item.icon === 'edit' && <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>}
@@ -798,7 +811,7 @@ const Sidebar = () => {
 
       <nav className="flex-1">
         {navItems.map((item) => (
-          <Link key={item.path} to={item.path} className={`sidebar-item ${location.pathname === item.path ? 'active' : ''}`}>
+          <Link key={item.path} to={item.path} className={`sidebar-item ${location.pathname === item.path || (item.path === '/profile/me' && location.pathname.startsWith('/profile')) ? 'active' : ''}`}>
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               {item.icon === 'home' && <><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>}
               {item.icon === 'edit' && <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>}
@@ -1003,6 +1016,7 @@ const IdentityRevealPage = () => {
                 onMouseLeave={handleHoldEnd}
                 onTouchStart={handleHoldStart}
                 onTouchEnd={handleHoldEnd}
+                onTouchCancel={handleHoldEnd}
               >
                 <div className="progress-ring">
                   <svg width="48" height="48" viewBox="0 0 48 48">
@@ -1039,27 +1053,47 @@ const HomePage = () => {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('trending');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  useEffect(() => {
+    setPage(1);
+    setConfessions([]);
+  }, [selectedCategory, sortBy]);
 
   useEffect(() => {
     const fetchFeed = async () => {
-      setLoading(true);
+      if (page === 1) setLoading(true);
+      else setIsLoadingMore(true);
+      
       try {
-        const token = localStorage.getItem('morpheus_token'); // Make sure your AuthContext saves this during login
-        const response = await fetch(`${SOCKET_URL}/api/feed?category=${selectedCategory}&sort=${sortBy}&page=1&limit=20`, {
+        const token = localStorage.getItem('morpheus_token');
+        const response = await fetch(`${SOCKET_URL}/api/feed?category=${selectedCategory}&sort=${sortBy}&page=${page}&limit=10`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!response.ok) throw new Error('Failed to fetch feed');
         const data = await response.json();
-        setConfessions(data.confessions);
+        
+        if (page === 1) {
+          setConfessions(data.confessions);
+        } else {
+          setConfessions(prev => [...prev, ...data.confessions]);
+        }
+        setHasMore(data.pagination.page < data.pagination.pages);
       } catch (err) {
         console.error('Feed error:', err);
-        setConfessions(MOCK_CONFESSIONS); // Fallback to mock data if backend fails
+        if (page === 1) {
+          setConfessions(MOCK_CONFESSIONS);
+          setHasMore(false);
+        }
       } finally {
         setLoading(false);
+        setIsLoadingMore(false);
       }
     };
     fetchFeed();
-  }, [selectedCategory, sortBy]);
+  }, [selectedCategory, sortBy, page]);
 
   return (
     <div className="min-h-screen pb-20 md:pb-0">
@@ -1087,9 +1121,20 @@ const HomePage = () => {
           {loading ? (
             <div className="text-center text-[var(--text-muted)] py-12 animate-pulse">Listening to the Echo...</div>
           ) : confessions.length > 0 ? (
-            confessions.map(confession => (
-              <ConfessionCard key={confession._id} confession={confession} />
-            ))
+            <>
+              {confessions.map(confession => (
+                <ConfessionCard key={confession._id} confession={confession} />
+              ))}
+              {hasMore && (
+                <button 
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={isLoadingMore}
+                  className="w-full py-3 mt-4 mb-8 bg-[var(--bg-card)] border border-[rgba(255,255,255,0.6)] text-[var(--accent-primary)] font-semibold rounded-xl hover:bg-[var(--accent-light)] transition-all backdrop-blur-md"
+                >
+                  {isLoadingMore ? 'Listening deeper...' : 'Load More Whispers'}
+                </button>
+              )}
+            </>
           ) : (
             <div className="text-center text-[var(--text-muted)] py-12">No whispers found here.</div>
           )}
@@ -1399,12 +1444,35 @@ const RadioPage = () => {
   }, [fetchRadioQueue]);
 
   useEffect(() => {
-    if (audioRef.current) audioRef.current.pause();
-    
-    if (currentConfession?.audioUrl && isPlaying) {
+    const handleStopAudio = (e) => {
+      if (e.detail?.id !== 'radio' && audioRef.current && isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    };
+    window.addEventListener('stop_all_audio', handleStopAudio);
+    return () => window.removeEventListener('stop_all_audio', handleStopAudio);
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if (!currentConfession?.audioUrl) return;
+
+    if (!audioRef.current || audioRef.current.src !== currentConfession.audioUrl) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
       audioRef.current = new Audio(currentConfession.audioUrl);
       audioRef.current.onended = handleNext;
-      audioRef.current.play().catch(e => console.error("Auto-play blocked:", e));
+    }
+
+    if (isPlaying) {
+      window.dispatchEvent(new CustomEvent('stop_all_audio', { detail: { id: 'radio' } }));
+      audioRef.current.play().catch(e => {
+        console.error("Auto-play blocked:", e);
+        setIsPlaying(false);
+      });
+    } else {
+      audioRef.current.pause();
     }
   }, [currentConfession, isPlaying, handleNext]);
 
@@ -1454,7 +1522,9 @@ const MessagesPage = () => {
   const [localMessages, setLocalMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [activeUserProfile, setActiveUserProfile] = useState(null);
+  const [isPartnerTyping, setIsPartnerTyping] = useState(false);
   const messagesEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
   const { user } = useAuth();
   const { socket, setUnreadCount } = useSocket() || {};
   const location = useLocation();
@@ -1522,8 +1592,15 @@ const MessagesPage = () => {
   }, [selectedUser]);
 
   useEffect(() => {
+    setIsPartnerTyping(false);
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, [selectedUser]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [selectedUser, localMessages]);
+  }, [selectedUser, localMessages, isPartnerTyping]);
 
   // Listen for incoming real-time messages
   useEffect(() => {
@@ -1534,28 +1611,82 @@ const MessagesPage = () => {
       if (data.fromId === selectedUser) {
         setLocalMessages(prev => [...prev, {
           _id: data.messageId,
-          sender: { _id: data.fromId, anonymousName: data.from },
+          sender: { _id: data.fromId, anonymousName: data.from, rarity: data.rarity },
           content: data.content,
           createdAt: data.timestamp,
           read: false
         }]);
+
+        // Prevent global badge from permanently staying up since we are actively reading this
+        if (setUnreadCount) setUnreadCount(prev => Math.max(0, prev - 1));
+
+        // Instantly mark as read on the backend
+        const token = localStorage.getItem('morpheus_token');
+        fetch(`${SOCKET_URL}/api/messages/${data.fromId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(err => console.error(err));
       }
       
       // Real-time sync for the sidebar conversation list
       setConversations(prev => {
         const exists = prev.find(c => c.partner._id === data.fromId);
-        if (!exists) return prev; // Requires a page refresh for brand new conversations
-        return prev.map(c => c.partner._id === data.fromId ? {
-          ...c,
-          lastMessage: { content: data.content, createdAt: data.timestamp },
-          unread: c.partner._id === selectedUser ? 0 : (c.unread || 0) + 1
-        } : c);
+        let updatedList;
+        if (!exists) {
+          updatedList = [{
+            partner: { _id: data.fromId, anonymousName: data.from, rarity: data.rarity || 'COMMON' },
+            lastMessage: { content: data.content, createdAt: data.timestamp },
+            unread: data.fromId === selectedUser ? 0 : 1
+          }, ...prev];
+        } else {
+          updatedList = prev.map(c => c.partner._id === data.fromId ? {
+            ...c,
+            lastMessage: { content: data.content, createdAt: data.timestamp },
+            unread: c.partner._id === selectedUser ? 0 : (c.unread || 0) + 1
+          } : c);
+        }
+        return [...updatedList].sort((a, b) => new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt));
       });
     };
     
+    const handleTypingStart = (data) => {
+      if (data.fromId === selectedUser) setIsPartnerTyping(true);
+    };
+    
+    const handleTypingEnd = (data) => {
+      if (data.fromId === selectedUser) setIsPartnerTyping(false);
+    };
+    
+    const handleMessagesRead = (data) => {
+      if (data.readBy === selectedUser) {
+        setLocalMessages(prev => prev.map(msg => ({ ...msg, read: true })));
+      }
+    };
+    
     socket.on('new_message', handleNewMessage);
-    return () => socket.off('new_message', handleNewMessage);
-  }, [socket, selectedUser]);
+    socket.on('typing_start', handleTypingStart);
+    socket.on('typing_end', handleTypingEnd);
+    socket.on('messages_read', handleMessagesRead);
+    
+    return () => {
+      socket.off('new_message', handleNewMessage);
+      socket.off('typing_start', handleTypingStart);
+      socket.off('typing_end', handleTypingEnd);
+      socket.off('messages_read', handleMessagesRead);
+    };
+  }, [socket, selectedUser, setUnreadCount]);
+
+  const handleTyping = (e) => {
+    setNewMessage(e.target.value);
+    if (!socket || !selectedUser) return;
+    
+    const currentUserId = user?.id || user?._id;
+    socket.emit('typing_start', { to: selectedUser, from: currentUserId });
+    
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit('typing_end', { to: selectedUser, from: currentUserId });
+    }, 2000);
+  };
 
   const handleSend = async () => {
     if (!newMessage.trim() || !selectedUser) return;
@@ -1567,11 +1698,16 @@ const MessagesPage = () => {
     // Optimistic UI update
     setLocalMessages(prev => [...prev, {
       _id: Date.now().toString(),
-      sender: { _id: currentUserId },
+      sender: { _id: currentUserId, anonymousName: user?.anonymousName, rarity: user?.rarity },
       content: msgContent,
       createdAt: timestamp,
       read: false
     }]);
+    
+    if (socket) {
+      socket.emit('typing_end', { to: selectedUser, from: currentUserId });
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    }
 
     setConversations(prev => {
       let updatedList;
@@ -1583,7 +1719,7 @@ const MessagesPage = () => {
       } else {
         updatedList = prev;
       }
-      return updatedList.sort((a, b) => new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt));
+      return [...updatedList].sort((a, b) => new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt));
     });
     
     setNewMessage('');
@@ -1633,16 +1769,28 @@ const MessagesPage = () => {
 
           <div className="chat-messages">
             {localMessages.filter(msg => msg.sender?._id === selectedUser || msg.sender?._id === (user?.id || user?._id || 'demo123')).map((msg, idx) => (
-              <div key={msg._id || idx} className={`message-bubble ${msg.sender?._id === selectedUser ? 'received' : 'sent'}`}>
+              <div key={msg._id || idx} className={`message-bubble break-words ${msg.sender?._id === selectedUser ? 'received' : 'sent'}`}>
                 <p>{msg.content}</p>
-                <p className="message-time">{formatRelativeTime(msg.createdAt)}{msg.sender?._id !== selectedUser && <span className="ml-2">{msg.read ? '✓✓' : '✓'}</span>}</p>
+                <p className="message-time">
+                  {formatRelativeTime(msg.createdAt)}
+                  {msg.sender?._id !== selectedUser && (
+                    <span className={`ml-2 font-bold ${msg.read ? 'text-blue-400' : 'text-inherit'}`}>{msg.read ? '✓✓' : '✓'}</span>
+                  )}
+                </p>
               </div>
             ))}
+            {isPartnerTyping && (
+              <div className="flex gap-1 items-center p-3 max-w-max rounded-2xl bg-[var(--bg-hover)] text-[var(--text-muted)] text-xs mb-4">
+                <span className="animate-bounce">●</span>
+                <span className="animate-bounce" style={{ animationDelay: '0.2s' }}>●</span>
+                <span className="animate-bounce" style={{ animationDelay: '0.4s' }}>●</span>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 
           <div className="chat-input-container">
-            <input type="text" className="chat-input" placeholder="Type your whisper..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} maxLength={500} onKeyDown={(e) => e.key === 'Enter' && handleSend()} />
+            <input type="text" className="chat-input" placeholder="Type your whisper..." value={newMessage} onChange={handleTyping} maxLength={500} onKeyDown={(e) => e.key === 'Enter' && handleSend()} />
             <button onClick={handleSend} className="chat-send-btn"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
           </div>
         </div>
