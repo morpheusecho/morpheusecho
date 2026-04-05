@@ -2102,7 +2102,7 @@ const ProfilePage = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const { updateUser } = useAuth();
+  const { updateUser, logout } = useAuth();
 
   useEffect(() => {
     setPage(1);
@@ -2295,7 +2295,7 @@ const ProfilePage = () => {
           <div className="stat-item"><p className="stat-value">{profile.following || 0}</p><p className="stat-label">Following</p></div>
         </div>
 
-        {!isOwnProfile && (
+        {!isOwnProfile ? (
           <div className="profile-actions">
             <FollowButton 
               userId={profile.id || profile._id}
@@ -2305,6 +2305,12 @@ const ProfilePage = () => {
             <Link to={`/messages?to=${profile.id || profile._id}`} className="profile-btn secondary">
               Message 💬
             </Link>
+          </div>
+        ) : (
+          <div className="profile-actions mobile-only">
+            <button onClick={logout} className="profile-btn secondary" style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}>
+              Logout
+            </button>
           </div>
         )}
 
