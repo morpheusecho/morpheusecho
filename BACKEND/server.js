@@ -1150,7 +1150,7 @@ app.post('/api/confessions/:id/react', authenticate, async (req, res) => {
           recipient: confession.author,
           type: 'reaction',
           message: `${req.user.anonymousName} sent you ${REACTIONS[reactionType].label}`,
-          data: { confessionId: confession._id, reactionType }
+          data: { confessionId: confession._id, reactionType, from: req.user._id }
         });
         await notification.save();
         io.to(`user_${confession.author}`).emit('reaction_notification', { confessionId: confession._id, type: reactionType, from: req.user.anonymousName });
@@ -1243,7 +1243,7 @@ app.post('/api/confessions/:id/comments', authenticate, async (req, res) => {
         recipient: confession.author,
         type: 'comment',
         message: `${req.user.anonymousName} commented on your whisper`,
-        data: { confessionId: confession._id, commentId: comment._id }
+        data: { confessionId: confession._id, commentId: comment._id, from: req.user._id }
       });
       await notification.save();
       
@@ -1297,6 +1297,10 @@ app.post('/api/users/avatar', authenticate, async (req, res) => {
 // Get User Profile
 app.get('/api/users/:id', authenticate, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
     const user = await User.findById(req.params.id)
       .select('-password -username');
     
@@ -1478,6 +1482,10 @@ app.get('/api/messages', authenticate, async (req, res) => {
 // Get Conversation Messages
 app.get('/api/messages/:userId', authenticate, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
     const messages = await Message.find({
       $or: [
         { sender: req.user._id, recipient: req.params.userId },

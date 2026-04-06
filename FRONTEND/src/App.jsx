@@ -379,7 +379,10 @@ const SocketProvider = ({ children }) => {
       
       // Global listeners to increment the badge in real-time
       const incUnread = () => setUnreadCount(prev => prev + 1);
-      const incUnreadMsg = () => setUnreadMessageCount(prev => prev + 1);
+      const incUnreadMsg = () => {
+        setUnreadMessageCount(prev => prev + 1);
+        setUnreadCount(prev => prev + 1); // Keep bell synced with backend Notification creation
+      };
       newSocket.on('notification', incUnread);
       newSocket.on('reaction_notification', incUnread);
       newSocket.on('comment_notification', incUnread);
@@ -694,7 +697,9 @@ const ConfessionCard = ({ confession, onDelete }) => {
       className={`confession-card ${getRarityFrameClass(confession.author?.rarity)}`}
     >
       <div className="card-header">
-        <AuthorOrb rarity={confession.author?.rarity} avatarUrl={confession.author?.avatarUrl} size={40} />
+        <Link to={`/profile/${confession.author?._id}`} className="hover:opacity-80 transition-opacity">
+          <AuthorOrb rarity={confession.author?.rarity} avatarUrl={confession.author?.avatarUrl} size={40} />
+        </Link>
         <div className="author-info">
           <Link to={`/profile/${confession.author?._id}`} className={`author-name ${getRarityTextClass(confession.author?.rarity)}`}>
             {confession.authorName}
@@ -822,10 +827,14 @@ const ConfessionCard = ({ confession, onDelete }) => {
               ) : comments.length > 0 ? (
                 comments.map(comment => (
                   <div key={comment._id} className="flex gap-3">
-                    <AuthorOrb rarity={comment.author?.rarity} avatarUrl={comment.author?.avatarUrl} size={28} />
+                    <Link to={`/profile/${comment.author?._id || comment.author?.id}`} onClick={(e) => e.stopPropagation()} className="hover:opacity-80 transition-opacity h-fit">
+                      <AuthorOrb rarity={comment.author?.rarity} avatarUrl={comment.author?.avatarUrl} size={28} />
+                    </Link>
                     <div className="flex-1 bg-[var(--bg-hover)] rounded-2xl rounded-tl-none p-3 text-sm">
                       <div className="flex justify-between items-baseline mb-1">
-                        <span className={`font-semibold text-xs ${getRarityTextClass(comment.author?.rarity)}`}>{comment.authorName}</span>
+                        <Link to={`/profile/${comment.author?._id || comment.author?.id}`} onClick={(e) => e.stopPropagation()} className={`font-semibold text-xs hover:underline ${getRarityTextClass(comment.author?.rarity)}`}>
+                          {comment.authorName}
+                        </Link>
                         <span className="text-[10px] text-[var(--text-muted)]">{formatRelativeTime(comment.createdAt)}</span>
                       </div>
                       <p className="text-[var(--text-primary)]">{comment.content}</p>
@@ -1270,6 +1279,7 @@ const CreatePage = () => {
   const timerRef = useRef(null);
   const submitTimeoutRef = useRef(null);
   const mediaRecorderRef = useRef(null);
+  const streamRef = useRef(null);
   const audioChunksRef = useRef([]);
   const isMounted = useRef(true);
   const waveformHeights = useMemo(() => Array.from({ length: 20 }).map(() => Math.random() * 30 + 10), [audioBlob]);
@@ -1283,6 +1293,10 @@ const CreatePage = () => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         mediaRecorderRef.current.stop();
       }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
     };
   }, []);
 
@@ -1292,6 +1306,7 @@ const CreatePage = () => {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
       
       // Security guard: If user navigated away during the permission prompt, kill the mic instantly
       if (!isMounted.current) {
@@ -1334,6 +1349,10 @@ const CreatePage = () => {
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
     setIsRecording(false);
     clearInterval(timerRef.current);
@@ -1637,7 +1656,9 @@ const RadioPage = () => {
         </div>
 
         <div className="radio-info">
-          <h2 className={`radio-author ${getRarityTextClass(currentConfession?.author?.rarity)}`}>{currentConfession?.authorName || 'Listening to the Echo...'}</h2>
+          <Link to={`/profile/${currentConfession?.author?._id || currentConfession?.author?.id}`} className="hover:opacity-80">
+            <h2 className={`radio-author hover:underline ${getRarityTextClass(currentConfession?.author?.rarity)}`}>{currentConfession?.authorName || 'Listening to the Echo...'}</h2>
+          </Link>
           <span className="radio-category" style={{ background: `${CATEGORIES.find(c => c.id === currentConfession?.categories?.[0])?.color || 'var(--accent-primary)'}30`, color: CATEGORIES.find(c => c.id === currentConfession?.categories?.[0])?.color || 'var(--accent-primary)' }}>{CATEGORIES.find(c => c.id === currentConfession?.categories?.[0])?.name || 'General'}</span>
         </div>
 
@@ -1663,6 +1684,7 @@ const MessagesPage = () => {
   const [conversations, setConversations] = useState([]);
   const [activeUserProfile, setActiveUserProfile] = useState(null);
   const [isPartnerTyping, setIsPartnerTyping] = useState(false);
+  const isInitialScroll = useRef(true);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const { user } = useAuth();
@@ -1701,6 +1723,7 @@ const MessagesPage = () => {
     if (!selectedUser) return;
     
     let isActive = true;
+    isInitialScroll.current = true;
     setActiveUserProfile(null);
     
     // Set active user profile for header
@@ -1765,7 +1788,8 @@ const MessagesPage = () => {
   }, [selectedUser]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: isInitialScroll.current ? 'auto' : 'smooth' });
+    isInitialScroll.current = false;
   }, [selectedUser, localMessages.length]);
 
   // Listen for incoming real-time messages
@@ -1788,6 +1812,7 @@ const MessagesPage = () => {
 
         // Prevent global badge from permanently staying up since we are actively reading this
         if (setUnreadMessageCount) setUnreadMessageCount(prev => Math.max(0, prev - 1));
+        if (setUnreadCount) setUnreadCount(prev => Math.max(0, prev - 1));
 
         // Instantly mark as read on the backend
         const token = localStorage.getItem('morpheus_token');
@@ -1842,7 +1867,7 @@ const MessagesPage = () => {
       socket.off('typing_end', handleTypingEnd);
       socket.off('messages_read', handleMessagesRead);
     };
-  }, [socket, selectedUser, setUnreadCount]);
+  }, [socket, selectedUser, setUnreadCount, setUnreadMessageCount]);
 
   const handleTyping = (e) => {
     setNewMessage(e.target.value);
@@ -1911,7 +1936,9 @@ const MessagesPage = () => {
         <div className="p-4 border-b border-[rgba(255,255,255,0.6)]"><h2 className="font-display text-xl text-[var(--text-primary)]">Messages</h2></div>
         {conversations.length > 0 ? conversations.map((conv) => (
           <div key={conv.partner._id} onClick={() => setSelectedUser(conv.partner._id)} className={`conversation-item ${selectedUser === conv.partner._id ? 'active' : ''}`}>
-            <AuthorOrb rarity={conv.partner.rarity} avatarUrl={conv.partner.avatarUrl} size={44} />
+            <div onClick={(e) => { e.stopPropagation(); navigate(`/profile/${conv.partner._id}`); }} className="hover:opacity-80 transition-opacity">
+              <AuthorOrb rarity={conv.partner.rarity} avatarUrl={conv.partner.avatarUrl} size={44} />
+            </div>
             <div className="conversation-preview">
               <p className="conversation-name text-[var(--text-primary)]">{conv.partner.anonymousName}</p>
               <p className="conversation-text">{conv.lastMessage.content}</p>
@@ -1932,8 +1959,10 @@ const MessagesPage = () => {
             <button className="back-btn mobile-only" onClick={() => { setSelectedUser(null); navigate('/messages'); }}>
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
+          <Link to={`/profile/${activeUserProfile?._id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
             <AuthorOrb rarity={activeUserProfile?.rarity} avatarUrl={activeUserProfile?.avatarUrl} size={36} />
-          <span className="font-semibold text-[var(--text-primary)]">{activeUserProfile?.anonymousName || 'User'}</span>
+            <span className="font-semibold text-[var(--text-primary)] hover:underline">{activeUserProfile?.anonymousName || 'User'}</span>
+          </Link>
           </div>
 
           <div className="chat-messages">
@@ -1996,7 +2025,7 @@ const NotificationsPage = () => {
           const hasUnread = data.notifications?.some(n => !n.read);
           
           if (hasUnread) {
-            setNotifications(data.notifications.map(n => ({ ...n, read: true })));
+            setNotifications(data.notifications); // Keep them visually unread for this session
             if (setUnreadCount) setUnreadCount(0); // Instantly wipe global red badge
             
             fetch(`${SOCKET_URL}/api/notifications/read-all`, {
@@ -2040,6 +2069,8 @@ const NotificationsPage = () => {
       navigate(`/messages?to=${notification.data.from}`);
     } else if (notification.type === 'follow' && notification.data?.followerId) {
       navigate(`/profile/${notification.data.followerId}`);
+    } else if (['reaction', 'comment'].includes(notification.type) && notification.data?.from) {
+      navigate(`/profile/${notification.data.from}`);
     } else if (['reaction', 'comment'].includes(notification.type)) {
       navigate(`/profile/me`);
     }
