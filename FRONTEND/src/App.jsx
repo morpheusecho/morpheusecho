@@ -405,7 +405,7 @@ const useSocket = () => useContext(SocketContext);
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-transparent"><div className="text-[var(--accent-primary)]">Loading...</div></div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/welcome" replace />;
   return children;
 };
 
@@ -491,6 +491,7 @@ const ConfessionCard = ({ confession, onDelete }) => {
   const [newComment, setNewComment] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
   const [localCommentCount, setLocalCommentCount] = useState(confession.commentCount);
+  const [copied, setCopied] = useState(false);
   const progressInterval = useRef(null);
   const holdTimeoutRef = useRef(null);
   const audioRef = useRef(null);
@@ -608,6 +609,18 @@ const ConfessionCard = ({ confession, onDelete }) => {
       }
     } catch (err) {
       console.error('Delete error:', err);
+    }
+  };
+
+  const handleShare = async (e) => {
+    e.stopPropagation();
+    const shareText = `"${confession.type === 'text' ? confession.content : 'Listen to my voice whisper'}"\n- ${confession.authorName}\n\nEnter the Echo: ${window.location.origin}`;
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy', err);
     }
   };
 
@@ -794,8 +807,12 @@ const ConfessionCard = ({ confession, onDelete }) => {
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
             </Link>
           )}
-          <button className="action-btn" title="Share" onClick={(e) => e.stopPropagation()}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          <button className="action-btn" title={copied ? "Copied!" : "Share"} onClick={handleShare}>
+            {copied ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500"><polyline points="20 6 9 17 4 12"/></svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            )}
           </button>
         </div>
       </div>
@@ -942,6 +959,68 @@ const Sidebar = () => {
 };
 
 // =============================================================================
+// WELCOME / LANDING PAGE
+// =============================================================================
+const WelcomePage = () => {
+  const navigate = useNavigate();
+  const stickers = [
+    // Ghost
+    { id: 1, icon: <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 10h.01"/><path d="M15 10h.01"/><path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z"/></svg>, top: '15%', left: '10%', delay: 0 },
+    // Venetian Mask
+    { id: 2, icon: <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="m2 2 20 20"/></svg>, top: '25%', left: '75%', delay: 1.5 },
+    // Eye closed
+    { id: 3, icon: <svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>, top: '75%', left: '15%', delay: 0.8 },
+    // Lock
+    { id: 4, icon: <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>, top: '65%', left: '80%', delay: 2.2 },
+    // Shield
+    { id: 5, icon: <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>, top: '45%', left: '5%', delay: 1.2 },
+  ];
+
+  return (
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-transparent">
+      {stickers.map(s => (
+        <motion.div
+          key={s.id}
+          className="absolute text-[var(--accent-primary)] opacity-20 pointer-events-none"
+          style={{ top: s.top, left: s.left }}
+          animate={{ 
+            y: [0, -40, 0], 
+            x: [0, 30, 0], 
+            rotate: [-15, 15, -15] 
+          }}
+          transition={{ duration: 8 + s.delay, repeat: Infinity, ease: "easeInOut", delay: s.delay }}
+        >
+          {s.icon}
+        </motion.div>
+      ))}
+
+      <motion.div
+        initial={{ opacity: 0, y: 40, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 1.2, ease: "easeOut" }}
+        className="relative z-10 text-center p-10 max-w-lg mx-auto bg-[rgba(255,255,255,0.7)] backdrop-blur-2xl border border-[rgba(255,255,255,0.8)] rounded-[2.5rem] shadow-2xl m-4"
+      >
+        <motion.img 
+          initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 1, delay: 0.3, type: "spring" }}
+          src={transparentLogo} alt="Logo" className="w-28 h-28 mx-auto mb-6 drop-shadow-xl" 
+        />
+        <h1 className="font-display text-4xl font-extrabold text-[var(--text-primary)] mb-4 tracking-tight">Morpheus Echo</h1>
+        <p className="text-[var(--text-secondary)] text-lg mb-10 leading-relaxed font-medium">
+          Speak your truth. Share your deepest secrets. <br />
+          <span className="text-[var(--accent-primary)]">Without ever revealing your face.</span>
+        </p>
+        <motion.button
+          whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => navigate('/login')}
+          className="w-full py-4 bg-gradient-to-r from-[var(--accent-primary)] to-[var(--accent-secondary)] text-white rounded-2xl font-bold text-lg shadow-[0_10px_25px_rgba(59,130,246,0.4)]"
+        >
+          Enter the Echo
+        </motion.button>
+      </motion.div>
+    </div>
+  );
+};
+
+// =============================================================================
 // LOGIN PAGE
 // =============================================================================
 const LoginPage = () => {
@@ -1060,7 +1139,7 @@ const IdentityRevealPage = () => {
 
   useEffect(() => {
     if (isRevealed) {
-      const timer = setTimeout(() => navigate('/'), 100);
+      const timer = setTimeout(() => navigate('/'), 3000);
       return () => clearTimeout(timer);
     }
   }, [isRevealed, navigate]);
@@ -1132,7 +1211,11 @@ const IdentityRevealPage = () => {
             </div>
           </>
         ) : (
-          <div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, filter: "blur(10px)" }}
+            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+            transition={{ duration: 2, ease: "easeOut" }}
+          >
             <h2 className="reveal-title mb-8">✨ YOUR IDENTITY IS ✨</h2>
             <div className={`identity-card ${getRarityFrameClass(user.rarity)}`}>
               <AuthorOrb rarity={user.rarity} avatarUrl={user.avatarUrl} size={80} />
@@ -1141,7 +1224,7 @@ const IdentityRevealPage = () => {
               <p className="identity-quote">"Your secret name. Your truth.<br />Guard it well."</p>
             </div>
             <p className="mt-8 text-[var(--text-muted)]">Entering the Echo...</p>
-          </div>
+          </motion.div>
         )}
       </div>
     </motion.div>
@@ -2430,6 +2513,7 @@ const App = () => (
     <SocketProvider>
       <PeacefulBackground />
       <Routes>
+        <Route path="/welcome" element={<WelcomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/reveal" element={<IdentityRevealPage />} />
         <Route path="/" element={<ProtectedRoute><AppLayout><HomePage /></AppLayout></ProtectedRoute>} />
