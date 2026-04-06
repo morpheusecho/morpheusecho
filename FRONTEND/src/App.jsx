@@ -159,12 +159,12 @@ const formatRelativeTime = (date) => {
 
 const getRarityColor = (rarity) => {
   const colors = {
-    MYTHIC: '#FF00FF',
+    MYTHIC: '#d946ef',
     LEGENDARY: '#D97706',
-    EXCLUSIVE: '#00FFFF',
-    RARE: '#C9A84C',
-    UNCOMMON: '#C0C0C0',
-    COMMON: '#9CA3AF'
+    EXCLUSIVE: '#0ea5e9',
+    RARE: '#f97316',
+    UNCOMMON: '#8b5cf6',
+    COMMON: '#64748b'
   };
   return colors[rarity] || colors.COMMON;
 };
@@ -446,20 +446,21 @@ const FollowButton = ({ userId, initialFollowing, onFollowChange }) => {
 // RARITY BADGE
 // =============================================================================
 const RarityBadge = ({ rarity, size = 'md' }) => {
-  if (rarity === 'COMMON') return null;
+  const safeRarity = rarity || 'COMMON';
   const sizeClasses = { sm: 'text-[10px] px-2 py-0.5', md: 'text-xs px-3 py-1', lg: 'text-sm px-4 py-1.5' };
   const config = {
-    MYTHIC: { color: '#FF00FF', icon: '∞' },
-    LEGENDARY: { color: '#D97706', icon: '⚡' },
-    EXCLUSIVE: { color: '#00FFFF', icon: '💎' },
-    RARE: { color: '#C9A84C', icon: '✨' },
-    UNCOMMON: { color: '#C0C0C0', icon: '🌙' }
-  }[rarity];
+    MYTHIC: { color: '#d946ef', icon: '∞' },
+    LEGENDARY: { color: '#d97706', icon: '⚡' },
+    EXCLUSIVE: { color: '#0ea5e9', icon: '💎' },
+    RARE: { color: '#f97316', icon: '✨' },
+    UNCOMMON: { color: '#8b5cf6', icon: '🌙' },
+    COMMON: { color: '#64748b', icon: '👤' }
+  }[safeRarity] || { color: '#64748b', icon: '👤' };
   
   return (
     <span className={`inline-flex items-center gap-1 rounded-full font-semibold ${sizeClasses[size]}`}
-      style={{ background: `${config.color}20`, color: config.color, boxShadow: `0 0 10px ${config.color}40` }}>
-      {config.icon} {rarity}
+      style={{ background: `${config.color}20`, color: config.color, boxShadow: safeRarity !== 'COMMON' ? `0 0 10px ${config.color}40` : 'none' }}>
+      {config.icon} {safeRarity}
     </span>
   );
 };
