@@ -250,6 +250,12 @@ const ThemeProvider = ({ children }) => {
       .theme-amoled .blur-overlay {
         background: rgba(0,0,0,0.85) !important;
       }
+      .theme-amoled .blur-content,
+      .theme-amoled .blur-content.revealed,
+      .theme-amoled .blur-reveal-container {
+        background-color: transparent !important;
+        color: var(--text-primary) !important;
+      }
       .theme-amoled .sidebar-nav {
         background-color: var(--bg-secondary) !important;
         border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
