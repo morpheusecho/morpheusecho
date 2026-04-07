@@ -888,7 +888,7 @@ app.post('/api/auth/login', async (req, res) => {
 // Get Feed
 app.get('/api/feed', authenticate, async (req, res) => {
   try {
-    const { category, sort = 'trending' } = req.query;
+    const { category, sort = 'trending', search } = req.query;
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 10, 50);
     const skip = (page - 1) * limit;
@@ -903,6 +903,18 @@ app.get('/api/feed', authenticate, async (req, res) => {
     
     if (category && category !== 'all') {
       query.categories = category;
+    }
+
+    if (search && search.trim() !== '') {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      query.$and = [
+        {
+          $or: [
+            { content: searchRegex },
+            { authorName: searchRegex }
+          ]
+        }
+      ];
     }
     
     let sortOption = {};
@@ -1291,6 +1303,36 @@ app.post('/api/users/avatar', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Avatar upload error:', error);
     res.status(500).json({ error: 'Failed to upload avatar' });
+  }
+});
+
+// Change Password
+app.post('/api/users/change-password', authenticate, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new password required' });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+    
+    const user = await User.findById(req.user._id);
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Incorrect current password' });
+    }
+    
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+    
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ error: 'Failed to change password' });
   }
 });
 

@@ -208,6 +208,68 @@ const getRarityOrbClass = (rarity) => {
 const getCategoryClass = (categoryId) => `cat-${categoryId}`;
 
 // =============================================================================
+// THEME CONTEXT (AMOLED / PERFORMANCE MODE)
+// =============================================================================
+const ThemeContext = createContext(null);
+
+const ThemeProvider = ({ children }) => {
+  const [isAmoled, setIsAmoled] = useState(() => localStorage.getItem('morpheus_theme') === 'amoled');
+
+  useEffect(() => {
+    if (isAmoled) {
+      document.documentElement.classList.add('theme-amoled');
+      document.body.style.backgroundColor = '#000000';
+      localStorage.setItem('morpheus_theme', 'amoled');
+    } else {
+      document.documentElement.classList.remove('theme-amoled');
+      document.body.style.backgroundColor = '#fcfcfd';
+      localStorage.setItem('morpheus_theme', 'default');
+    }
+  }, [isAmoled]);
+
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .theme-amoled {
+        --bg-primary: #000000 !important;
+        --bg-secondary: #090909 !important;
+        --bg-card: #111111 !important;
+        --bg-hover: #1a1a1a !important;
+        --accent-primary: #ff2a2a !important; /* Striking Red */
+        --accent-secondary: #ffb300 !important; /* AMOLED Yellow */
+        --accent-light: rgba(255, 42, 42, 0.15) !important;
+        --text-primary: #ffffff !important;
+        --text-secondary: #d1d5db !important;
+        --text-muted: #6b7280 !important;
+      }
+      /* Performance Overrides: Strip out heavy paints */
+      .theme-amoled * {
+        backdrop-filter: none !important;
+        box-shadow: none !important;
+      }
+      .theme-amoled .blur-overlay {
+        background: rgba(0,0,0,0.85) !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
+
+  return <ThemeContext.Provider value={{ isAmoled, setIsAmoled }}>{children}</ThemeContext.Provider>;
+};
+
+const useTheme = () => useContext(ThemeContext);
+
+const ThemeToggle = () => {
+  const { isAmoled, setIsAmoled } = useTheme();
+  return (
+    <button onClick={() => setIsAmoled(!isAmoled)} className="fixed top-4 right-4 z-[9999] p-2.5 bg-[var(--bg-card)] border border-[rgba(255,255,255,0.2)] rounded-full text-[var(--accent-primary)] hover:scale-110 transition-transform shadow-lg flex items-center justify-center" title="Toggle AMOLED Performance Mode">
+      {isAmoled ? <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg> : <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>}
+    </button>
+  );
+};
+
+// =============================================================================
 // AUTH CONTEXT
 // =============================================================================
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -301,7 +363,9 @@ const AuthProvider = ({ children }) => {
 // PEACEFUL ANIMATED BACKGROUND
 // =============================================================================
 const PeacefulBackground = () => {
+  const { isAmoled } = useTheme();
   const particles = useMemo(() => {
+    if (isAmoled) return []; // Skip physics calculations entirely on AMOLED mode
     const colors = ['#fecdd3', '#bfdbfe', '#bbf7d0', '#fef08a', '#ffedd5']; // Pink, Blue, Green, Yellow, Peach
     // Reduced particle count from 18 to 6 and simplified movement to drastically improve UI performance
     return Array.from({ length: 6 }).map((_, i) => ({
@@ -314,7 +378,11 @@ const PeacefulBackground = () => {
       yMove: Math.random() * 40 - 20,
       duration: Math.random() * 10 + 10
     }));
-  }, []);
+  }, [isAmoled]);
+
+  if (isAmoled) {
+    return <div className="fixed inset-0 bg-[#000000] z-[-1]"></div>;
+  }
 
   return (
     <div className="peaceful-bg fixed inset-0 overflow-hidden pointer-events-none z-[-1]">
@@ -354,7 +422,13 @@ const SocketProvider = ({ children }) => {
         headers: { 'Authorization': `Bearer ${token}` }
       })
         .then(res => res.json())
-        .then(data => setUnreadCount(data.unreadCount || 0))
+        .then(data => {
+          if (Array.isArray(data)) {
+            setUnreadCount(data.filter(n => !n.read).length);
+          } else {
+            setUnreadCount(data.unreadCount || 0);
+          }
+        })
         .catch(err => console.error('Failed to fetch unread count:', err));
 
       // Fetch initial unread messages count
@@ -871,10 +945,70 @@ const ConfessionCard = ({ confession, onDelete }) => {
 };
 
 // =============================================================================
+// LOADING SKELETONS
+// =============================================================================
+const ConfessionSkeleton = () => (
+  <div className="confession-card frame-common animate-pulse">
+    <div className="card-header">
+      <div className="w-10 h-10 rounded-full bg-[rgba(255,255,255,0.1)]"></div>
+      <div className="author-info flex-1">
+        <div className="w-32 h-4 bg-[rgba(255,255,255,0.1)] rounded mb-2"></div>
+        <div className="w-24 h-3 bg-[rgba(255,255,255,0.1)] rounded"></div>
+      </div>
+      <div className="w-16 h-6 bg-[rgba(255,255,255,0.1)] rounded-full"></div>
+    </div>
+    <div className="flex gap-2 mb-4">
+      <div className="w-16 h-6 bg-[rgba(255,255,255,0.1)] rounded-full"></div>
+      <div className="w-20 h-6 bg-[rgba(255,255,255,0.1)] rounded-full"></div>
+    </div>
+    <div className="h-24 bg-[rgba(255,255,255,0.05)] rounded-xl mb-4"></div>
+    <div className="card-actions">
+      <div className="reactions-row">
+        {[1, 2, 3, 4].map(i => <div key={i} className="w-12 h-8 bg-[rgba(255,255,255,0.1)] rounded-full"></div>)}
+      </div>
+    </div>
+  </div>
+);
+
+const NotificationSkeleton = () => (
+  <div className="notification-item animate-pulse">
+    <div className="w-10 h-10 rounded-full bg-[rgba(255,255,255,0.1)]"></div>
+    <div className="notification-content flex-1">
+      <div className="w-3/4 h-4 bg-[rgba(255,255,255,0.1)] rounded mb-2"></div>
+      <div className="w-1/4 h-3 bg-[rgba(255,255,255,0.1)] rounded"></div>
+    </div>
+  </div>
+);
+
+const ProfileSkeleton = () => (
+  <div className="min-h-screen pb-20 md:pb-0 animate-pulse">
+    <div className="profile-header">
+      <div className="w-[100px] h-[100px] rounded-full bg-[rgba(255,255,255,0.1)] mx-auto mb-4"></div>
+      <div className="w-48 h-6 bg-[rgba(255,255,255,0.1)] rounded mx-auto mb-2"></div>
+      <div className="w-32 h-4 bg-[rgba(255,255,255,0.1)] rounded mx-auto mb-4"></div>
+      <div className="w-24 h-6 bg-[rgba(255,255,255,0.1)] rounded-full mx-auto mb-6"></div>
+      <div className="profile-stats">
+        {[1,2,3,4].map(i => (
+          <div key={i} className="stat-item flex flex-col items-center">
+            <div className="w-8 h-6 bg-[rgba(255,255,255,0.1)] rounded mb-1"></div>
+            <div className="w-16 h-3 bg-[rgba(255,255,255,0.1)] rounded"></div>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div className="p-4 space-y-4">
+      <div className="w-24 h-6 bg-[rgba(255,255,255,0.1)] rounded mb-4"></div>
+      {[1,2].map(i => <ConfessionSkeleton key={i} />)}
+    </div>
+  </div>
+);
+
+// =============================================================================
 // BOTTOM NAVIGATION
 // =============================================================================
 const BottomNav = () => {
   const location = useLocation();
+  const { user } = useAuth();
   const { unreadCount, unreadMessageCount } = useSocket() || { unreadCount: 0, unreadMessageCount: 0 };
   const navItems = [
     { path: '/', icon: 'home', label: 'Feed' },
@@ -888,7 +1022,7 @@ const BottomNav = () => {
   return (
     <nav className="bottom-nav">
       {navItems.map((item) => (
-        <Link key={item.path} to={item.path} className={`nav-item ${location.pathname === item.path || (item.path === '/profile/me' && location.pathname.startsWith('/profile')) ? 'active' : ''}`}>
+        <Link key={item.path} to={item.path} className={`nav-item ${location.pathname === item.path || (item.path === '/profile/me' && (location.pathname === '/profile/me' || location.pathname === `/profile/${user?.id || user?._id}`)) ? 'active' : ''}`}>
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             {item.icon === 'home' && <><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>}
             {item.icon === 'edit' && <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>}
@@ -934,7 +1068,7 @@ const Sidebar = () => {
 
       <nav className="flex-1">
         {navItems.map((item) => (
-          <Link key={item.path} to={item.path} className={`sidebar-item ${location.pathname === item.path || (item.path === '/profile/me' && location.pathname.startsWith('/profile')) ? 'active' : ''}`}>
+          <Link key={item.path} to={item.path} className={`sidebar-item ${location.pathname === item.path || (item.path === '/profile/me' && (location.pathname === '/profile/me' || location.pathname === `/profile/${user?.id || user?._id}`)) ? 'active' : ''}`}>
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               {item.icon === 'home' && <><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>}
               {item.icon === 'edit' && <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>}
@@ -1240,6 +1374,8 @@ const HomePage = () => {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('trending');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -1247,7 +1383,7 @@ const HomePage = () => {
   useEffect(() => {
     setPage(1);
     setConfessions([]);
-  }, [selectedCategory, sortBy]);
+  }, [selectedCategory, sortBy, searchQuery]);
 
   useEffect(() => {
     let isActive = true;
@@ -1257,7 +1393,7 @@ const HomePage = () => {
       
       try {
         const token = localStorage.getItem('morpheus_token');
-        const response = await fetch(`${SOCKET_URL}/api/feed?category=${selectedCategory}&sort=${sortBy}&page=${page}&limit=10`, {
+        const response = await fetch(`${SOCKET_URL}/api/feed?category=${selectedCategory}&sort=${sortBy}&page=${page}&limit=10&search=${encodeURIComponent(searchQuery)}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!response.ok) throw new Error('Failed to fetch feed');
@@ -1279,7 +1415,12 @@ const HomePage = () => {
         if (!isActive) return;
         
         if (page === 1) {
-          setConfessions(MOCK_CONFESSIONS);
+          let filteredMocks = MOCK_CONFESSIONS;
+          if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            filteredMocks = filteredMocks.filter(c => c.content?.toLowerCase().includes(q) || c.authorName?.toLowerCase().includes(q));
+          }
+          setConfessions(filteredMocks);
           setHasMore(false);
         }
       } finally {
@@ -1289,7 +1430,7 @@ const HomePage = () => {
     };
     fetchFeed();
     return () => { isActive = false; };
-  }, [selectedCategory, sortBy, page]);
+  }, [selectedCategory, sortBy, searchQuery, page]);
 
   const handleDeleteConfession = (id) => {
     setConfessions(prev => prev.filter(c => c._id !== id));
@@ -1299,6 +1440,19 @@ const HomePage = () => {
     <div className="min-h-screen pb-20 md:pb-0">
       <div className="sticky top-0 z-10 bg-[var(--bg-secondary)] backdrop-blur-xl border-b border-[rgba(255,255,255,0.6)]">
         <div className="p-4">
+          <form onSubmit={(e) => { e.preventDefault(); setSearchQuery(searchInput); }} className="mb-4 flex gap-2">
+            <div className="relative flex-1">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" placeholder="Search whispers or users..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="w-full bg-[var(--bg-card)] border border-[rgba(255,255,255,0.6)] rounded-xl pl-10 pr-4 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)] backdrop-blur-md" />
+              {searchInput && (
+                <button type="button" onClick={() => { setSearchInput(''); setSearchQuery(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              )}
+            </div>
+            <button type="submit" className="px-4 py-2 bg-[var(--accent-primary)] text-white rounded-xl text-sm font-semibold shadow-md">Search</button>
+          </form>
+
           <div className="flex gap-2 overflow-x-auto hide-scrollbar mb-4">
             <button onClick={() => setSelectedCategory('all')} className={`category-pill whitespace-nowrap ${selectedCategory === 'all' ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border-[rgba(255,255,255,0.6)] text-[var(--text-secondary)] backdrop-blur-md'}`}>All</button>
             {CATEGORIES.map(cat => (
@@ -1319,7 +1473,9 @@ const HomePage = () => {
       <div className="p-4">
         <div className="space-y-4">
           {loading ? (
-            <div className="text-center text-[var(--text-muted)] py-12 animate-pulse">Listening to the Echo...</div>
+            <>
+              {[1, 2, 3].map(i => <ConfessionSkeleton key={i} />)}
+            </>
           ) : confessions.length > 0 ? (
             <>
               {confessions.map(confession => (
@@ -1459,6 +1615,7 @@ const CreatePage = () => {
 
   const handleSubmit = async () => {
     if (selectedCategories.length === 0) { alert('Select at least one category'); return; }
+    if (type === 'text' && wordCount > 200) { alert('Please keep your whisper under 200 words.'); return; }
     setLoading(true);
     
     try {
@@ -1689,6 +1846,11 @@ const RadioPage = () => {
   useEffect(() => {
     if (!currentConfession?.audioUrl) {
       setIsPlaying(false);
+      // Auto-skip invalid/text entries that sneak into the queue to prevent radio freeze
+      if (queue.length > 0) {
+        const skipTimer = setTimeout(() => handleNext(), 2000);
+        return () => clearTimeout(skipTimer);
+      }
       return;
     }
 
@@ -1819,6 +1981,7 @@ const MessagesPage = () => {
       fetch(`${SOCKET_URL}/api/users/${selectedUser}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json())
         .then(data => {
+          if (!isActive) return;
           if (data && data.user) {
             setActiveUserProfile({ ...data.user, _id: data.user.id || data.user._id });
           }
@@ -1853,6 +2016,9 @@ const MessagesPage = () => {
             if (clearedCount > 0 && setUnreadCount) {
               setUnreadCount(curr => Math.max(0, curr - clearedCount));
             }
+              if (clearedCount > 0 && setUnreadMessageCount) {
+                setUnreadMessageCount(curr => Math.max(0, curr - clearedCount));
+              }
             return next;
           });
         }
@@ -1995,7 +2161,7 @@ const MessagesPage = () => {
       } else if (activeUserProfile) {
         updatedList = [{ partner: activeUserProfile, lastMessage: { content: msgContent, createdAt: timestamp }, unread: 0 }, ...prev];
       } else {
-        updatedList = prev;
+        updatedList = [{ partner: { _id: selectedUser, anonymousName: 'User' }, lastMessage: { content: msgContent, createdAt: timestamp }, unread: 0 }, ...prev];
       }
       return [...updatedList].sort((a, b) => new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt));
     });
@@ -2019,7 +2185,7 @@ const MessagesPage = () => {
       <div className={`conversations-list ${selectedUser ? 'hide-on-mobile' : ''}`}>
         <div className="p-4 border-b border-[rgba(255,255,255,0.6)]"><h2 className="font-display text-xl text-[var(--text-primary)]">Messages</h2></div>
         {conversations.length > 0 ? conversations.map((conv) => (
-          <div key={conv.partner._id} onClick={() => setSelectedUser(conv.partner._id)} className={`conversation-item ${selectedUser === conv.partner._id ? 'active' : ''}`}>
+          <div key={conv.partner._id} onClick={() => navigate(`/messages?to=${conv.partner._id}`)} className={`conversation-item ${selectedUser === conv.partner._id ? 'active' : ''}`}>
             <div onClick={(e) => { e.stopPropagation(); navigate(`/profile/${conv.partner._id}`); }} className="hover:opacity-80 transition-opacity">
               <AuthorOrb rarity={conv.partner.rarity} avatarUrl={conv.partner.avatarUrl} size={44} />
             </div>
@@ -2040,7 +2206,7 @@ const MessagesPage = () => {
       {selectedUser ? (
         <div className={`chat-container ${!selectedUser ? 'hide-on-mobile' : ''}`}>
           <div className="chat-header">
-            <button className="back-btn mobile-only" onClick={() => { setSelectedUser(null); navigate('/messages'); }}>
+            <button className="back-btn mobile-only" onClick={() => navigate('/messages')}>
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
           <Link to={`/profile/${activeUserProfile?._id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
@@ -2106,19 +2272,21 @@ const NotificationsPage = () => {
         });
         if (res.ok) {
           const data = await res.json();
-          const hasUnread = data.notifications?.some(n => !n.read);
+          const notifsList = Array.isArray(data) ? data : (data.notifications || []);
+          const hasUnread = notifsList.some(n => !n.read);
           
           if (hasUnread) {
-            setNotifications(data.notifications); // Keep them visually unread for this session
-            if (setUnreadCount) setUnreadCount(0); // Instantly wipe global red badge
+            setNotifications(notifsList); // Keep them visually unread for this session
+            const unreadNotifsCount = notifsList.filter(n => !n.read).length;
+            if (setUnreadCount) setUnreadCount(curr => Math.max(0, curr - unreadNotifsCount));
             
             fetch(`${SOCKET_URL}/api/notifications/read-all`, {
               method: 'PATCH',
               headers: { 'Authorization': `Bearer ${token}` }
             }).catch(err => console.error(err));
           } else {
-            setNotifications(data.notifications || []);
-            if (data.unreadCount !== undefined && setUnreadCount) {
+            setNotifications(notifsList);
+            if (!Array.isArray(data) && data.unreadCount !== undefined && setUnreadCount) {
               setUnreadCount(data.unreadCount);
             }
           }
@@ -2149,14 +2317,12 @@ const NotificationsPage = () => {
       }
     }
 
-    if (notification.type === 'message' && notification.data?.from) {
-      navigate(`/messages?to=${notification.data.from}`);
-    } else if (notification.type === 'follow' && notification.data?.followerId) {
-      navigate(`/profile/${notification.data.followerId}`);
-    } else if (['reaction', 'comment'].includes(notification.type) && notification.data?.from) {
-      navigate(`/profile/${notification.data.from}`);
+    if (notification.type === 'message') {
+      navigate(`/messages${notification.data?.from ? `?to=${notification.data.from}` : ''}`);
+    } else if (notification.type === 'follow') {
+      navigate(notification.data?.followerId ? `/profile/${notification.data.followerId}` : `/profile/me`);
     } else if (['reaction', 'comment'].includes(notification.type)) {
-      navigate(`/profile/me`);
+      navigate(notification.data?.from ? `/profile/${notification.data.from}` : `/profile/me`);
     }
   };
 
@@ -2173,7 +2339,9 @@ const NotificationsPage = () => {
       <div className="p-4">
         <div className="space-y-3">
           {loading ? (
-            <div className="text-center text-[var(--text-muted)] py-12 animate-pulse">Loading alerts...</div>
+            <>
+              {[1, 2, 3, 4, 5].map(i => <NotificationSkeleton key={i} />)}
+            </>
           ) : notifications.length > 0 ? (
             notifications.map((notification) => (
             <motion.div 
@@ -2227,6 +2395,9 @@ const ProfilePage = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
+  const [passwordStatus, setPasswordStatus] = useState({ error: '', success: '', loading: false });
   const { updateUser, logout } = useAuth();
 
   useEffect(() => {
@@ -2379,8 +2550,42 @@ const ProfilePage = () => {
     }
   };
 
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setPasswordStatus({ error: '', success: '', loading: true });
+    
+    if (passwordData.new !== passwordData.confirm) {
+      setPasswordStatus({ error: 'New passwords do not match', success: '', loading: false });
+      return;
+    }
+    if (passwordData.new.length < 6) {
+      setPasswordStatus({ error: 'New password must be at least 6 characters', success: '', loading: false });
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}/api/users/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ currentPassword: passwordData.current, newPassword: passwordData.new })
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        setPasswordStatus({ error: '', success: 'Password changed successfully!', loading: false });
+        setPasswordData({ current: '', new: '', confirm: '' });
+        setTimeout(() => { setShowPasswordModal(false); setPasswordStatus({ error: '', success: '', loading: false }); }, 2000);
+      } else {
+        setPasswordStatus({ error: data.error || 'Failed to change password', success: '', loading: false });
+      }
+    } catch (err) {
+      setPasswordStatus({ error: 'Network error', success: '', loading: false });
+    }
+  };
+
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center"><div className="text-[var(--text-muted)] animate-pulse">Loading Profile...</div></div>;
+    return <ProfileSkeleton />;
   }
 
   if (!profile) {
@@ -2393,7 +2598,7 @@ const ProfilePage = () => {
         <div className="relative mx-auto mb-4" style={{ width: '100px', height: '100px' }}>
           <div className={`w-full h-full rounded-full flex items-center justify-center overflow-hidden ${getRarityOrbClass(profile.rarity)}`}>
             {profile.avatarUrl ? (
-              <img src={profile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              <img src={profile.avatarUrl} alt="Avatar" loading="lazy" decoding="async" className="w-full h-full object-cover" />
             ) : (
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             )}
@@ -2432,7 +2637,10 @@ const ProfilePage = () => {
             </Link>
           </div>
         ) : (
-          <div className="profile-actions mobile-only">
+          <div className="profile-actions flex-wrap justify-center gap-2">
+            <button onClick={() => setShowPasswordModal(true)} className="profile-btn secondary text-[var(--text-secondary)] border border-[rgba(255,255,255,0.3)] hover:bg-[rgba(255,255,255,0.1)]">
+              Change Password
+            </button>
             <button onClick={logout} className="profile-btn secondary" style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}>
               Logout
             </button>
@@ -2475,6 +2683,35 @@ const ProfilePage = () => {
           )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {showPasswordModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowPasswordModal(false)}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[var(--bg-secondary)] border border-[rgba(255,255,255,0.2)] p-6 rounded-2xl w-full max-w-md shadow-2xl relative"
+            >
+              <button onClick={() => setShowPasswordModal(false)} className="absolute top-4 right-4 text-[var(--text-muted)] hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+              <h2 className="text-xl font-display text-[var(--text-primary)] mb-4">Change Password</h2>
+              
+              {passwordStatus.error && <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">{passwordStatus.error}</div>}
+              {passwordStatus.success && <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-400 text-sm">{passwordStatus.success}</div>}
+              
+              <form onSubmit={handlePasswordChange} className="space-y-4">
+                <div><label className="block text-sm text-[var(--text-secondary)] mb-1">Current Password</label><input type="password" required className="w-full bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.2)] rounded-lg px-4 py-2 text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]" value={passwordData.current} onChange={e => setPasswordData({...passwordData, current: e.target.value})} /></div>
+                <div><label className="block text-sm text-[var(--text-secondary)] mb-1">New Password</label><input type="password" required minLength={6} className="w-full bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.2)] rounded-lg px-4 py-2 text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]" value={passwordData.new} onChange={e => setPasswordData({...passwordData, new: e.target.value})} /></div>
+                <div><label className="block text-sm text-[var(--text-secondary)] mb-1">Confirm New Password</label><input type="password" required minLength={6} className="w-full bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.2)] rounded-lg px-4 py-2 text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]" value={passwordData.confirm} onChange={e => setPasswordData({...passwordData, confirm: e.target.value})} /></div>
+                <button type="submit" disabled={passwordStatus.loading} className="w-full py-3 bg-[var(--accent-primary)] text-white rounded-lg font-semibold mt-4 disabled:opacity-50">
+                  {passwordStatus.loading ? 'Updating...' : 'Update Password'}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -2509,23 +2746,33 @@ const AppLayout = ({ children }) => {
 // =============================================================================
 // MAIN APP COMPONENT
 // =============================================================================
-const App = () => (
-  <AuthProvider>
-    <SocketProvider>
-      <PeacefulBackground />
-      <Routes>
-        <Route path="/welcome" element={<WelcomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/reveal" element={<IdentityRevealPage />} />
-        <Route path="/" element={<ProtectedRoute><AppLayout><HomePage /></AppLayout></ProtectedRoute>} />
-        <Route path="/create" element={<ProtectedRoute><AppLayout><CreatePage /></AppLayout></ProtectedRoute>} />
-        <Route path="/radio" element={<ProtectedRoute><AppLayout><RadioPage /></AppLayout></ProtectedRoute>} />
-        <Route path="/messages" element={<ProtectedRoute><AppLayout><MessagesPage /></AppLayout></ProtectedRoute>} />
-        <Route path="/notifications" element={<ProtectedRoute><AppLayout><NotificationsPage /></AppLayout></ProtectedRoute>} />
-        <Route path="/profile/:id" element={<ProtectedRoute><AppLayout><ProfilePage /></AppLayout></ProtectedRoute>} />
-      </Routes>
-    </SocketProvider>
-  </AuthProvider>
-);
+const App = () => {
+  useEffect(() => {
+    // Store cookie on browser visit to track returning users
+    document.cookie = "morpheus_visited=true; max-age=31536000; path=/; SameSite=Lax";
+  }, []);
+
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <SocketProvider>
+          <ThemeToggle />
+          <PeacefulBackground />
+          <Routes>
+            <Route path="/welcome" element={<WelcomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/reveal" element={<IdentityRevealPage />} />
+            <Route path="/" element={<ProtectedRoute><AppLayout><HomePage /></AppLayout></ProtectedRoute>} />
+            <Route path="/create" element={<ProtectedRoute><AppLayout><CreatePage /></AppLayout></ProtectedRoute>} />
+            <Route path="/radio" element={<ProtectedRoute><AppLayout><RadioPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/messages" element={<ProtectedRoute><AppLayout><MessagesPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><AppLayout><NotificationsPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/profile/:id" element={<ProtectedRoute><AppLayout><ProfilePage /></AppLayout></ProtectedRoute>} />
+          </Routes>
+        </SocketProvider>
+      </AuthProvider>
+    </ThemeProvider>
+  );
+};
 
 export default App;
