@@ -250,6 +250,64 @@ const ThemeProvider = ({ children }) => {
       .theme-amoled .blur-overlay {
         background: rgba(0,0,0,0.85) !important;
       }
+      .theme-amoled .sidebar-nav {
+        background-color: var(--bg-secondary) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+      }
+      .theme-amoled .sidebar-nav nav .sidebar-item,
+      .theme-amoled .bottom-nav .nav-item {
+        color: var(--text-secondary) !important;
+      }
+      .theme-amoled .sidebar-nav nav .sidebar-item:hover, 
+      .theme-amoled .sidebar-nav nav .sidebar-item.active {
+        color: var(--accent-primary) !important;
+        background-color: var(--bg-hover) !important;
+      }
+      .theme-amoled .bottom-nav .nav-item:hover, 
+      .theme-amoled .bottom-nav .nav-item.active {
+        color: var(--accent-primary) !important;
+      }
+      .theme-amoled .bottom-nav {
+        background-color: var(--bg-secondary) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+      }
+      .theme-amoled .border-gray-200 {
+        border-color: rgba(255, 255, 255, 0.1) !important;
+      }
+      .theme-amoled .input-field,
+      .theme-amoled .chat-input {
+        background-color: var(--bg-hover) !important;
+        border-color: rgba(255, 255, 255, 0.2) !important;
+        color: var(--text-primary) !important;
+      }
+      .theme-amoled .skeleton-block {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+      }
+      .theme-amoled .chat-header,
+      .theme-amoled .chat-input-container,
+      .theme-amoled .conversations-list {
+        background-color: var(--bg-secondary) !important;
+        border-color: rgba(255, 255, 255, 0.1) !important;
+      }
+      .theme-amoled .conversation-item {
+        border-bottom-color: rgba(255, 255, 255, 0.05) !important;
+      }
+      .theme-amoled .conversation-item:hover {
+        background-color: var(--bg-hover) !important;
+      }
+      .theme-amoled .message-bubble.received,
+      .theme-amoled .reaction-btn,
+      .theme-amoled .audio-player,
+      .theme-amoled .auth-tabs,
+      .theme-amoled .radio-btn {
+        background-color: var(--bg-hover) !important;
+        border-color: rgba(255, 255, 255, 0.1) !important;
+        color: var(--text-primary) !important;
+      }
+      .theme-amoled .reaction-btn:hover,
+      .theme-amoled .radio-btn:hover {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+      }
     `;
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
@@ -263,7 +321,7 @@ const useTheme = () => useContext(ThemeContext);
 const ThemeToggle = () => {
   const { isAmoled, setIsAmoled } = useTheme();
   return (
-    <button onClick={() => setIsAmoled(!isAmoled)} className="fixed top-4 right-4 z-[9999] p-2.5 bg-[var(--bg-card)] border border-[rgba(255,255,255,0.2)] rounded-full text-[var(--accent-primary)] hover:scale-110 transition-transform shadow-lg flex items-center justify-center" title="Toggle AMOLED Performance Mode">
+    <button onClick={() => setIsAmoled(!isAmoled)} className="fixed bottom-24 right-4 md:bottom-8 md:right-8 z-[9999] p-2.5 bg-[var(--bg-card)] border border-[rgba(255,255,255,0.2)] rounded-full text-[var(--accent-primary)] hover:scale-110 transition-transform shadow-lg flex items-center justify-center" title="Toggle AMOLED Performance Mode">
       {isAmoled ? <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg> : <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>}
     </button>
   );
@@ -950,21 +1008,21 @@ const ConfessionCard = ({ confession, onDelete }) => {
 const ConfessionSkeleton = () => (
   <div className="confession-card frame-common animate-pulse">
     <div className="card-header">
-      <div className="w-10 h-10 rounded-full bg-[rgba(255,255,255,0.1)]"></div>
+      <div className="w-10 h-10 rounded-full bg-black/5 skeleton-block"></div>
       <div className="author-info flex-1">
-        <div className="w-32 h-4 bg-[rgba(255,255,255,0.1)] rounded mb-2"></div>
-        <div className="w-24 h-3 bg-[rgba(255,255,255,0.1)] rounded"></div>
+        <div className="w-32 h-4 bg-black/5 skeleton-block rounded mb-2"></div>
+        <div className="w-24 h-3 bg-black/5 skeleton-block rounded"></div>
       </div>
-      <div className="w-16 h-6 bg-[rgba(255,255,255,0.1)] rounded-full"></div>
+      <div className="w-16 h-6 bg-black/5 skeleton-block rounded-full"></div>
     </div>
     <div className="flex gap-2 mb-4">
-      <div className="w-16 h-6 bg-[rgba(255,255,255,0.1)] rounded-full"></div>
-      <div className="w-20 h-6 bg-[rgba(255,255,255,0.1)] rounded-full"></div>
+      <div className="w-16 h-6 bg-black/5 skeleton-block rounded-full"></div>
+      <div className="w-20 h-6 bg-black/5 skeleton-block rounded-full"></div>
     </div>
-    <div className="h-24 bg-[rgba(255,255,255,0.05)] rounded-xl mb-4"></div>
+    <div className="h-24 bg-black/5 skeleton-block rounded-xl mb-4"></div>
     <div className="card-actions">
       <div className="reactions-row">
-        {[1, 2, 3, 4].map(i => <div key={i} className="w-12 h-8 bg-[rgba(255,255,255,0.1)] rounded-full"></div>)}
+        {[1, 2, 3, 4].map(i => <div key={i} className="w-12 h-8 bg-black/5 skeleton-block rounded-full"></div>)}
       </div>
     </div>
   </div>
@@ -972,10 +1030,10 @@ const ConfessionSkeleton = () => (
 
 const NotificationSkeleton = () => (
   <div className="notification-item animate-pulse">
-    <div className="w-10 h-10 rounded-full bg-[rgba(255,255,255,0.1)]"></div>
+    <div className="w-10 h-10 rounded-full bg-black/5 skeleton-block"></div>
     <div className="notification-content flex-1">
-      <div className="w-3/4 h-4 bg-[rgba(255,255,255,0.1)] rounded mb-2"></div>
-      <div className="w-1/4 h-3 bg-[rgba(255,255,255,0.1)] rounded"></div>
+      <div className="w-3/4 h-4 bg-black/5 skeleton-block rounded mb-2"></div>
+      <div className="w-1/4 h-3 bg-black/5 skeleton-block rounded"></div>
     </div>
   </div>
 );
@@ -983,21 +1041,21 @@ const NotificationSkeleton = () => (
 const ProfileSkeleton = () => (
   <div className="min-h-screen pb-20 md:pb-0 animate-pulse">
     <div className="profile-header">
-      <div className="w-[100px] h-[100px] rounded-full bg-[rgba(255,255,255,0.1)] mx-auto mb-4"></div>
-      <div className="w-48 h-6 bg-[rgba(255,255,255,0.1)] rounded mx-auto mb-2"></div>
-      <div className="w-32 h-4 bg-[rgba(255,255,255,0.1)] rounded mx-auto mb-4"></div>
-      <div className="w-24 h-6 bg-[rgba(255,255,255,0.1)] rounded-full mx-auto mb-6"></div>
+      <div className="w-[100px] h-[100px] rounded-full bg-black/5 skeleton-block mx-auto mb-4"></div>
+      <div className="w-48 h-6 bg-black/5 skeleton-block rounded mx-auto mb-2"></div>
+      <div className="w-32 h-4 bg-black/5 skeleton-block rounded mx-auto mb-4"></div>
+      <div className="w-24 h-6 bg-black/5 skeleton-block rounded-full mx-auto mb-6"></div>
       <div className="profile-stats">
         {[1,2,3,4].map(i => (
           <div key={i} className="stat-item flex flex-col items-center">
-            <div className="w-8 h-6 bg-[rgba(255,255,255,0.1)] rounded mb-1"></div>
-            <div className="w-16 h-3 bg-[rgba(255,255,255,0.1)] rounded"></div>
+            <div className="w-8 h-6 bg-black/5 skeleton-block rounded mb-1"></div>
+            <div className="w-16 h-3 bg-black/5 skeleton-block rounded"></div>
           </div>
         ))}
       </div>
     </div>
     <div className="p-4 space-y-4">
-      <div className="w-24 h-6 bg-[rgba(255,255,255,0.1)] rounded mb-4"></div>
+      <div className="w-24 h-6 bg-black/5 skeleton-block rounded mb-4"></div>
       {[1,2].map(i => <ConfessionSkeleton key={i} />)}
     </div>
   </div>
