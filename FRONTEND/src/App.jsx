@@ -218,10 +218,12 @@ const ThemeProvider = ({ children }) => {
   useEffect(() => {
     if (isAmoled) {
       document.documentElement.classList.add('theme-amoled');
+      document.documentElement.classList.add('dark');
       document.body.style.backgroundColor = '#000000';
       localStorage.setItem('morpheus_theme', 'amoled');
     } else {
       document.documentElement.classList.remove('theme-amoled');
+      document.documentElement.classList.remove('dark');
       document.body.style.backgroundColor = '#fcfcfd';
       localStorage.setItem('morpheus_theme', 'default');
     }
@@ -241,6 +243,10 @@ const ThemeProvider = ({ children }) => {
         --text-primary: #ffffff !important;
         --text-secondary: #d1d5db !important;
         --text-muted: #6b7280 !important;
+          --border-light: rgba(255, 255, 255, 0.1) !important;
+          --border-strong: rgba(255, 255, 255, 0.2) !important;
+          --border-hover: rgba(255, 255, 255, 0.3) !important;
+          color-scheme: dark !important;
       }
       /* Performance Overrides: Strip out heavy paints */
       .theme-amoled * {
@@ -256,9 +262,18 @@ const ThemeProvider = ({ children }) => {
         background-color: transparent !important;
         color: var(--text-primary) !important;
       }
+        /* Fix Frame Gradients Overriding Dark Mode */
+        .theme-amoled .frame-mythic,
+        .theme-amoled .frame-legendary,
+        .theme-amoled .frame-exclusive,
+        .theme-amoled .frame-rare,
+        .theme-amoled .frame-uncommon,
+        .theme-amoled .frame-common {
+          background: var(--bg-card) !important;
+        }
       .theme-amoled .sidebar-nav {
         background-color: var(--bg-secondary) !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+          border-right: 1px solid var(--border-light) !important;
       }
       .theme-amoled .sidebar-nav nav .sidebar-item,
       .theme-amoled .bottom-nav .nav-item {
@@ -275,15 +290,16 @@ const ThemeProvider = ({ children }) => {
       }
       .theme-amoled .bottom-nav {
         background-color: var(--bg-secondary) !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+          border-top: 1px solid var(--border-light) !important;
       }
       .theme-amoled .border-gray-200 {
-        border-color: rgba(255, 255, 255, 0.1) !important;
+          border-color: var(--border-light) !important;
       }
       .theme-amoled .input-field,
-      .theme-amoled .chat-input {
+        .theme-amoled .chat-input,
+        .theme-amoled textarea {
         background-color: var(--bg-hover) !important;
-        border-color: rgba(255, 255, 255, 0.2) !important;
+          border-color: var(--border-strong) !important;
         color: var(--text-primary) !important;
       }
       .theme-amoled .skeleton-block {
@@ -293,10 +309,10 @@ const ThemeProvider = ({ children }) => {
       .theme-amoled .chat-input-container,
       .theme-amoled .conversations-list {
         background-color: var(--bg-secondary) !important;
-        border-color: rgba(255, 255, 255, 0.1) !important;
+          border-color: var(--border-light) !important;
       }
       .theme-amoled .conversation-item {
-        border-bottom-color: rgba(255, 255, 255, 0.05) !important;
+          border-bottom-color: var(--border-light) !important;
       }
       .theme-amoled .conversation-item:hover {
         background-color: var(--bg-hover) !important;
@@ -307,7 +323,7 @@ const ThemeProvider = ({ children }) => {
       .theme-amoled .auth-tabs,
       .theme-amoled .radio-btn {
         background-color: var(--bg-hover) !important;
-        border-color: rgba(255, 255, 255, 0.1) !important;
+          border-color: var(--border-light) !important;
         color: var(--text-primary) !important;
       }
       .theme-amoled .reaction-btn:hover,
@@ -631,6 +647,11 @@ const ConfessionCard = ({ confession, onDelete }) => {
   const [loadingComments, setLoadingComments] = useState(false);
   const [localCommentCount, setLocalCommentCount] = useState(confession.commentCount);
   const [copied, setCopied] = useState(false);
+  const [localPoll, setLocalPoll] = useState(confession.poll);
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [isAddingUpdate, setIsAddingUpdate] = useState(false);
+  const [updateText, setUpdateText] = useState('');
+  const [isSubmittingUpdate, setIsSubmittingUpdate] = useState(false);
   const progressInterval = useRef(null);
   const holdTimeoutRef = useRef(null);
   const audioRef = useRef(null);
@@ -839,6 +860,48 @@ const ConfessionCard = ({ confession, onDelete }) => {
     }
   };
 
+  const handleVote = async (optionIndex, e) => {
+    e.stopPropagation();
+    if (!user) return;
+    const currentUserId = user?.id || user?._id;
+    
+    // Optimistic UI update
+    setLocalPoll(prev => {
+      if (!prev) return prev;
+      const newPoll = JSON.parse(JSON.stringify(prev));
+      newPoll.options.forEach(o => { o.votes = o.votes.filter(id => id !== currentUserId) });
+      newPoll.options[optionIndex].votes.push(currentUserId);
+      return newPoll;
+    });
+
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      await fetch(`${SOCKET_URL}/api/confessions/${confession._id}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ optionIndex })
+      });
+    } catch (err) {
+      console.error('Vote error:', err);
+    }
+  };
+
+  const handleUpdateSubmit = async (e) => {
+    e.preventDefault();
+    if (!updateText.trim()) return;
+    setIsSubmittingUpdate(true);
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}/api/confessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ type: 'text', content: updateText, categories: confession.categories, chainParent: confession._id })
+      });
+      if (res.ok) { setUpdateText(''); setIsAddingUpdate(false); alert('Update posted to the Echo chamber successfully!'); }
+    } catch(err) { console.error(err); } 
+    finally { setIsSubmittingUpdate(false); }
+  };
+
   const safeDuration = confession.audioDuration || 0;
   return (
     <motion.div 
@@ -848,6 +911,12 @@ const ConfessionCard = ({ confession, onDelete }) => {
       transition={{ duration: 0.01 }}
       className={`confession-card ${getRarityFrameClass(confession.author?.rarity)}`}
     >
+      {confession.chainParent && (
+        <div className="flex items-center gap-2 text-xs font-semibold text-[var(--accent-secondary)] mb-3 pb-2 border-b border-[var(--border-light)]">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg>
+          Update to a previous whisper
+        </div>
+      )}
       <div className="card-header">
         <Link to={`/profile/${confession.author?._id}`} className="hover:opacity-80 transition-opacity">
           <AuthorOrb rarity={confession.author?.rarity} avatarUrl={confession.author?.avatarUrl} size={40} />
@@ -901,6 +970,42 @@ const ConfessionCard = ({ confession, onDelete }) => {
               <span className="audio-duration">{Math.floor(safeDuration / 60)}:{String(Math.floor(safeDuration % 60)).padStart(2, '0')}</span>
             </div>
           )}
+
+          {confession.type === 'voice' && isRevealed && (
+            <div className="mt-4 border-t border-[var(--border-light)] pt-3">
+              <button onClick={(e) => { e.stopPropagation(); setShowTranscript(!showTranscript); }} className="text-xs font-semibold text-[var(--accent-primary)] hover:underline flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                {showTranscript ? 'Hide Transcript' : 'Read Auto-Transcript'}
+              </button>
+              {showTranscript && (
+                <div className="transcript-box text-[var(--text-secondary)] mt-2 p-3 bg-[var(--bg-hover)] border-l-2 border-[var(--accent-primary)] rounded-r-lg text-sm italic">
+                  {confession.transcript || "[Transcript processing...]"}
+                </div>
+              )}
+            </div>
+          )}
+
+          {localPoll && localPoll.options?.length > 0 && isRevealed && (
+            <div className="poll-container mt-4 bg-[var(--bg-secondary)] p-4 rounded-xl border border-[var(--border-light)]" onClick={e => e.stopPropagation()}>
+              <p className="font-semibold mb-3 text-[var(--text-primary)]">{localPoll.question}</p>
+              <div className="space-y-2">
+              {localPoll.options.map((opt, idx) => {
+                const totalVotes = localPoll.options.reduce((sum, o) => sum + (o.votes?.length || 0), 0);
+                const currentUserId = user?.id || user?._id;
+                const hasVoted = localPoll.options.some(o => o.votes?.includes(currentUserId));
+                const isMyVote = opt.votes?.includes(currentUserId);
+                const percent = totalVotes > 0 ? Math.round(((opt.votes?.length || 0) / totalVotes) * 100) : 0;
+                return (
+                  <button key={idx} onClick={(e) => handleVote(idx, e)} className={`relative w-full text-left p-3 rounded-xl border overflow-hidden transition-all ${isMyVote ? 'border-[var(--accent-primary)] bg-[var(--accent-light)]' : 'border-[var(--border-strong)] bg-[var(--bg-card)] hover:border-[var(--accent-primary)]'}`}>
+                    {hasVoted && <div className="absolute top-0 left-0 bottom-0 bg-[var(--accent-primary)] opacity-20 transition-all duration-500" style={{ width: `${percent}%` }}></div>}
+                    <div className="relative z-10 flex justify-between text-sm font-medium text-[var(--text-primary)]"><span>{opt.text}</span>{hasVoted && <span>{percent}%</span>}</div>
+                  </button>
+                );
+              })}
+              </div>
+              <p className="text-xs text-[var(--text-muted)] text-right mt-2">{localPoll.options.reduce((sum, o) => sum + (o.votes?.length || 0), 0)} total votes</p>
+            </div>
+          )}
         </div>
 
         {!isRevealed && holdProgress > 0 && (
@@ -936,6 +1041,11 @@ const ConfessionCard = ({ confession, onDelete }) => {
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             {localCommentCount > 0 && <span>{localCommentCount}</span>}
           </button>
+          {user && confession.author?._id === (user?.id || user?._id) && (
+            <button className="action-btn" title="Add Update Thread" onClick={(e) => { e.stopPropagation(); setIsAddingUpdate(!isAddingUpdate); }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/></svg>
+            </button>
+          )}
           {user && confession.author?._id === (user?.id || user?._id) && (
             <button className="action-btn text-red-400 hover:text-red-500" title="Delete" onClick={handleDelete}>
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -1001,6 +1111,23 @@ const ConfessionCard = ({ confession, onDelete }) => {
                 <div className="text-center text-xs text-[var(--text-muted)] py-2">No whispers yet. Be the first.</div>
               )}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {isAddingUpdate && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.2)] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <form onSubmit={handleUpdateSubmit} className="flex flex-col gap-2 mb-2">
+              <textarea
+                placeholder="What happened next? Post an update to this whisper..."
+                value={updateText} onChange={(e) => setUpdateText(e.target.value)}
+                className="w-full bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.4)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[var(--accent-primary)] text-[var(--text-primary)]" rows="3"
+              />
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setIsAddingUpdate(false)} className="px-4 py-2 rounded-full text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]">Cancel</button>
+                <button type="submit" disabled={!updateText.trim() || isSubmittingUpdate} className="bg-[var(--accent-primary)] text-white px-4 py-2 rounded-full text-sm font-semibold disabled:opacity-50">{isSubmittingUpdate ? 'Posting...' : 'Post Update'}</button>
+              </div>
+            </form>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1197,7 +1324,7 @@ const WelcomePage = () => {
         initial={{ opacity: 0, y: 40, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 1.2, ease: "easeOut" }}
-        className="relative z-10 text-center p-10 max-w-lg mx-auto bg-[rgba(255,255,255,0.7)] backdrop-blur-2xl border border-[rgba(255,255,255,0.8)] rounded-[2.5rem] shadow-2xl m-4"
+        className="relative z-10 text-center p-10 max-w-lg mx-auto bg-[var(--bg-card)] backdrop-blur-2xl border border-[var(--border-strong)] rounded-[2.5rem] shadow-2xl m-4"
       >
         <motion.img 
           initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 1, delay: 0.3, type: "spring" }}
@@ -1502,12 +1629,12 @@ const HomePage = () => {
 
   return (
     <div className="min-h-screen pb-20 md:pb-0">
-      <div className="sticky top-0 z-10 bg-[var(--bg-secondary)] backdrop-blur-xl border-b border-[rgba(255,255,255,0.6)]">
+      <div className="sticky top-0 z-10 bg-[var(--bg-secondary)] backdrop-blur-xl border-b border-[var(--border-light)]">
         <div className="p-4">
           <form onSubmit={(e) => { e.preventDefault(); setSearchQuery(searchInput); }} className="mb-4 flex gap-2">
             <div className="relative flex-1">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" placeholder="Search whispers or users..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="w-full bg-[var(--bg-card)] border border-[rgba(255,255,255,0.6)] rounded-xl pl-10 pr-4 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)] backdrop-blur-md" />
+              <input type="text" placeholder="Search whispers or users..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="w-full bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl pl-10 pr-4 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)] backdrop-blur-md" />
               {searchInput && (
                 <button type="button" onClick={() => { setSearchInput(''); setSearchQuery(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1518,7 +1645,7 @@ const HomePage = () => {
           </form>
 
           <div className="flex gap-2 overflow-x-auto hide-scrollbar mb-4">
-            <button onClick={() => setSelectedCategory('all')} className={`category-pill whitespace-nowrap ${selectedCategory === 'all' ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border-[rgba(255,255,255,0.6)] text-[var(--text-secondary)] backdrop-blur-md'}`}>All</button>
+            <button onClick={() => setSelectedCategory('all')} className={`category-pill whitespace-nowrap ${selectedCategory === 'all' ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border-[var(--border-light)] text-[var(--text-secondary)] backdrop-blur-md'}`}>All</button>
             {CATEGORIES.map(cat => (
               <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`category-pill whitespace-nowrap ${selectedCategory === cat.id ? 'ring-2 ring-white shadow-sm' : 'backdrop-blur-md'}`} style={{ background: `${cat.color}20`, color: cat.color, border: `1px solid ${cat.color}40` }}>{cat.name}</button>
             ))}
@@ -1526,7 +1653,7 @@ const HomePage = () => {
           
           <div className="flex gap-2">
             {['trending', 'new', 'following'].map(sort => (
-              <button key={sort} onClick={() => setSortBy(sort)} className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${sortBy === sort ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border-[rgba(255,255,255,0.6)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] backdrop-blur-md'}`}>
+              <button key={sort} onClick={() => setSortBy(sort)} className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${sortBy === sort ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border-[var(--border-light)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] backdrop-blur-md'}`}>
                 {sort.charAt(0).toUpperCase() + sort.slice(1)}
               </button>
             ))}
@@ -1549,7 +1676,7 @@ const HomePage = () => {
                 <button 
                   onClick={() => setPage(p => p + 1)}
                   disabled={isLoadingMore}
-                  className="w-full py-3 mt-4 mb-8 bg-[var(--bg-card)] border border-[rgba(255,255,255,0.6)] text-[var(--accent-primary)] font-semibold rounded-xl hover:bg-[var(--accent-light)] transition-all backdrop-blur-md"
+                className="w-full py-3 mt-4 mb-8 bg-[var(--bg-card)] border border-[var(--border-light)] text-[var(--accent-primary)] font-semibold rounded-xl hover:bg-[var(--accent-light)] transition-all backdrop-blur-md"
                 >
                   {isLoadingMore ? 'Listening deeper...' : 'Load More Whispers'}
                 </button>
@@ -1577,6 +1704,9 @@ const CreatePage = () => {
   const [expiry, setExpiry] = useState('7d');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [showPoll, setShowPoll] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState(['', '']);
   const [audioBlob, setAudioBlob] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -1627,6 +1757,7 @@ const CreatePage = () => {
       };
 
       mediaRecorder.onstop = () => {
+        if (!isMounted.current) return; // Prevent state update on unmounted component
         const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
         setAudioBlob(blob);
@@ -1711,7 +1842,11 @@ const CreatePage = () => {
         ambientSound,
         categories: selectedCategories,
         mood: selectedMood,
-        expiry
+        expiry,
+        poll: showPoll && pollQuestion && pollOptions.filter(o => o.trim()).length >= 2 ? {
+          question: pollQuestion,
+          options: pollOptions.filter(o => o.trim()).map(text => ({ text, votes: [] }))
+        } : undefined
       };
 
       // Save the confession in the database
@@ -1741,11 +1876,11 @@ const CreatePage = () => {
         <h1 className="font-display text-2xl mb-6 text-[var(--text-primary)]">Share Your Whisper</h1>
 
         <div className="flex gap-4 mb-6">
-          <button onClick={() => setType('text')} className={`flex-1 py-4 rounded-xl border transition-all backdrop-blur-md ${type === 'text' ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 shadow-sm' : 'border-[rgba(255,255,255,0.8)] bg-[var(--bg-card)]'}`}>
+          <button onClick={() => setType('text')} className={`flex-1 py-4 rounded-xl border transition-all backdrop-blur-md ${type === 'text' ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 shadow-sm' : 'border-[var(--border-strong)] bg-[var(--bg-card)]'}`}>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2 text-[var(--text-muted)]"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
             <span className="text-sm text-[var(--text-secondary)]">Text</span>
           </button>
-          <button onClick={() => setType('voice')} className={`flex-1 py-4 rounded-xl border transition-all backdrop-blur-md ${type === 'voice' ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 shadow-sm' : 'border-[rgba(255,255,255,0.8)] bg-[var(--bg-card)]'}`}>
+          <button onClick={() => setType('voice')} className={`flex-1 py-4 rounded-xl border transition-all backdrop-blur-md ${type === 'voice' ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 shadow-sm' : 'border-[var(--border-strong)] bg-[var(--bg-card)]'}`}>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2 text-[var(--text-muted)]"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
             <span className="text-sm text-[var(--text-secondary)]">Voice</span>
           </button>
@@ -1759,7 +1894,7 @@ const CreatePage = () => {
         ) : (
           <div className="mb-6">
             {!audioBlob ? (
-            <div className="recorder-container bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.6)] backdrop-blur-md rounded-xl py-12 shadow-sm">
+            <div className="recorder-container bg-[var(--bg-hover)] border border-[var(--border-light)] backdrop-blur-md rounded-xl py-12 shadow-sm">
               <button onClick={isRecording ? stopRecording : startRecording} className={`w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center transition-all ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-gradient-to-br from-[var(--accent-primary)] to-[var(--accent-secondary)] hover:scale-105 shadow-md'}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">{isRecording ? <rect x="6" y="6" width="12" height="12"/> : <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>}</svg>
                 </button>
@@ -1767,7 +1902,7 @@ const CreatePage = () => {
               <p className="text-[var(--text-muted)] text-sm">{isRecording ? 'Tap to stop' : 'Tap to record (max 100s)'}</p>
               </div>
             ) : (
-            <div className="bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.6)] backdrop-blur-md rounded-xl p-4 shadow-sm">
+            <div className="bg-[var(--bg-hover)] border border-[var(--border-light)] backdrop-blur-md rounded-xl p-4 shadow-sm">
                 <div className="flex items-center gap-4">
                   <button className="play-btn w-12 h-12" onClick={(e) => e.stopPropagation()}><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
                   <div className="flex-1"><div className="waveform h-10">{waveformHeights.map((height, i) => <div key={i} className="waveform-bar" style={{ height: `${height}px` }}></div>)}</div></div>
@@ -1781,7 +1916,7 @@ const CreatePage = () => {
               <p className="text-sm text-[var(--text-muted)] mb-2">Voice Effect</p>
               <div className="flex gap-2 flex-wrap">
                 {VOICE_EFFECTS.map(effect => (
-                  <button key={effect.id} onClick={() => setVoiceEffect(effect.id)} className={`px-4 py-2 rounded-full text-sm transition-all ${voiceEffect === effect.id ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border border-[rgba(255,255,255,0.6)] text-[var(--text-secondary)] backdrop-blur-md'}`}>{effect.name}</button>
+                  <button key={effect.id} onClick={() => setVoiceEffect(effect.id)} className={`px-4 py-2 rounded-full text-sm transition-all ${voiceEffect === effect.id ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border border-[var(--border-light)] text-[var(--text-secondary)] backdrop-blur-md'}`}>{effect.name}</button>
                 ))}
               </div>
             </div>
@@ -1790,12 +1925,34 @@ const CreatePage = () => {
               <p className="text-sm text-[var(--text-muted)] mb-2">Ambient Sound</p>
               <div className="flex gap-2 flex-wrap">
                 {AMBIENT_SOUNDS.map(sound => (
-                  <button key={sound.id} onClick={() => setAmbientSound(sound.id)} className={`px-4 py-2 rounded-full text-sm transition-all ${ambientSound === sound.id ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border border-[rgba(255,255,255,0.6)] text-[var(--text-secondary)] backdrop-blur-md'}`}>{sound.name}</button>
+                  <button key={sound.id} onClick={() => setAmbientSound(sound.id)} className={`px-4 py-2 rounded-full text-sm transition-all ${ambientSound === sound.id ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border border-[var(--border-light)] text-[var(--text-secondary)] backdrop-blur-md'}`}>{sound.name}</button>
                 ))}
               </div>
             </div>
           </div>
         )}
+
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-[var(--text-muted)]">Attach an Anonymous Poll (optional)</p>
+            <button onClick={() => setShowPoll(!showPoll)} className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${showPoll ? 'bg-[var(--accent-primary)] text-white' : 'bg-[var(--bg-card)] border border-[var(--border-light)] text-[var(--text-secondary)]'}`}>
+              {showPoll ? 'Remove Poll' : '+ Add Poll'}
+            </button>
+          </div>
+          <AnimatePresence>
+            {showPoll && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-3 overflow-hidden">
+                <input type="text" placeholder="Ask the community a question..." value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} className="w-full bg-[var(--bg-hover)] border border-[var(--border-light)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[var(--accent-primary)] text-[var(--text-primary)]" />
+                {pollOptions.map((opt, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <input type="text" placeholder={`Option ${idx + 1}`} value={opt} onChange={e => { const newOpts = [...pollOptions]; newOpts[idx] = e.target.value; setPollOptions(newOpts); }} className="flex-1 bg-[var(--bg-hover)] border border-[var(--border-light)] rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[var(--accent-primary)] text-[var(--text-primary)]" />
+                  </div>
+                ))}
+                {pollOptions.length < 4 && <button onClick={() => setPollOptions([...pollOptions, ''])} className="text-xs text-[var(--accent-primary)] font-semibold hover:underline">+ Add another option</button>}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         <div className="mb-6">
           <p className="text-sm text-[var(--text-muted)] mb-2">Categories ({selectedCategories.length}/3)</p>
@@ -1819,7 +1976,7 @@ const CreatePage = () => {
           <p className="text-sm text-[var(--text-muted)] mb-2">Expires in</p>
           <div className="flex gap-2">
             {[{ id: '24h', label: '24 Hours' }, { id: '7d', label: '7 Days' }, { id: 'never', label: 'Never' }].map(opt => (
-              <button key={opt.id} onClick={() => setExpiry(opt.id)} className={`flex-1 py-3 rounded-lg text-sm transition-all ${expiry === opt.id ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border border-[rgba(255,255,255,0.6)] text-[var(--text-secondary)] backdrop-blur-md'}`}>{opt.label}</button>
+              <button key={opt.id} onClick={() => setExpiry(opt.id)} className={`flex-1 py-3 rounded-lg text-sm transition-all ${expiry === opt.id ? 'bg-[var(--accent-primary)] text-white shadow-md' : 'bg-[var(--bg-card)] border border-[var(--border-light)] text-[var(--text-secondary)] backdrop-blur-md'}`}>{opt.label}</button>
             ))}
           </div>
         </div>
@@ -2092,7 +2249,7 @@ const MessagesPage = () => {
     };
     fetchMessages();
     return () => { isActive = false; };
-  }, [selectedUser]);
+  }, [selectedUser, conversations, setUnreadCount, setUnreadMessageCount]);
 
   useEffect(() => {
     setIsPartnerTyping(false);
@@ -2247,7 +2404,7 @@ const MessagesPage = () => {
   return (
     <div className="messages-container">
       <div className={`conversations-list ${selectedUser ? 'hide-on-mobile' : ''}`}>
-        <div className="p-4 border-b border-[rgba(255,255,255,0.6)]"><h2 className="font-display text-xl text-[var(--text-primary)]">Messages</h2></div>
+        <div className="p-4 border-b border-[var(--border-light)]"><h2 className="font-display text-xl text-[var(--text-primary)]">Messages</h2></div>
         {conversations.length > 0 ? conversations.map((conv) => (
           <div key={conv.partner._id} onClick={() => navigate(`/messages?to=${conv.partner._id}`)} className={`conversation-item ${selectedUser === conv.partner._id ? 'active' : ''}`}>
             <div onClick={(e) => { e.stopPropagation(); navigate(`/profile/${conv.partner._id}`); }} className="hover:opacity-80 transition-opacity">
@@ -2736,7 +2893,7 @@ const ProfilePage = () => {
                 <button 
                   onClick={() => setPage(p => p + 1)}
                   disabled={isLoadingMore}
-                  className="w-full py-3 mt-4 mb-8 bg-[var(--bg-card)] border border-[rgba(255,255,255,0.6)] text-[var(--accent-primary)] font-semibold rounded-xl hover:bg-[var(--accent-light)] transition-all backdrop-blur-md"
+                  className="w-full py-3 mt-4 mb-8 bg-[var(--bg-card)] border border-[var(--border-light)] text-[var(--accent-primary)] font-semibold rounded-xl hover:bg-[var(--accent-light)] transition-all backdrop-blur-md"
                 >
                   {isLoadingMore ? 'Listening deeper...' : 'Load More Whispers'}
                 </button>
@@ -2754,7 +2911,7 @@ const ProfilePage = () => {
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-[var(--bg-secondary)] border border-[rgba(255,255,255,0.2)] p-6 rounded-2xl w-full max-w-md shadow-2xl relative"
+            className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] p-6 rounded-2xl w-full max-w-md shadow-2xl relative"
             >
               <button onClick={() => setShowPasswordModal(false)} className="absolute top-4 right-4 text-[var(--text-muted)] hover:text-white">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -2765,9 +2922,9 @@ const ProfilePage = () => {
               {passwordStatus.success && <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-400 text-sm">{passwordStatus.success}</div>}
               
               <form onSubmit={handlePasswordChange} className="space-y-4">
-                <div><label className="block text-sm text-[var(--text-secondary)] mb-1">Current Password</label><input type="password" required className="w-full bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.2)] rounded-lg px-4 py-2 text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]" value={passwordData.current} onChange={e => setPasswordData({...passwordData, current: e.target.value})} /></div>
-                <div><label className="block text-sm text-[var(--text-secondary)] mb-1">New Password</label><input type="password" required minLength={6} className="w-full bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.2)] rounded-lg px-4 py-2 text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]" value={passwordData.new} onChange={e => setPasswordData({...passwordData, new: e.target.value})} /></div>
-                <div><label className="block text-sm text-[var(--text-secondary)] mb-1">Confirm New Password</label><input type="password" required minLength={6} className="w-full bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.2)] rounded-lg px-4 py-2 text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]" value={passwordData.confirm} onChange={e => setPasswordData({...passwordData, confirm: e.target.value})} /></div>
+              <div><label className="block text-sm text-[var(--text-secondary)] mb-1">Current Password</label><input type="password" required className="w-full bg-[var(--bg-hover)] border border-[var(--border-strong)] rounded-lg px-4 py-2 text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]" value={passwordData.current} onChange={e => setPasswordData({...passwordData, current: e.target.value})} /></div>
+              <div><label className="block text-sm text-[var(--text-secondary)] mb-1">New Password</label><input type="password" required minLength={6} className="w-full bg-[var(--bg-hover)] border border-[var(--border-strong)] rounded-lg px-4 py-2 text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]" value={passwordData.new} onChange={e => setPasswordData({...passwordData, new: e.target.value})} /></div>
+              <div><label className="block text-sm text-[var(--text-secondary)] mb-1">Confirm New Password</label><input type="password" required minLength={6} className="w-full bg-[var(--bg-hover)] border border-[var(--border-strong)] rounded-lg px-4 py-2 text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]" value={passwordData.confirm} onChange={e => setPasswordData({...passwordData, confirm: e.target.value})} /></div>
                 <button type="submit" disabled={passwordStatus.loading} className="w-full py-3 bg-[var(--accent-primary)] text-white rounded-lg font-semibold mt-4 disabled:opacity-50">
                   {passwordStatus.loading ? 'Updating...' : 'Update Password'}
                 </button>

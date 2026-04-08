@@ -13,6 +13,10 @@
   --bg-card: rgba(255, 255, 255, 0.85);
   --bg-hover: rgba(255, 255, 255, 0.95);
   
+  --border-light: rgba(255, 255, 255, 0.6);
+  --border-strong: rgba(255, 255, 255, 0.8);
+  --border-hover: rgba(255, 255, 255, 0.9);
+
   --text-primary: #0f172a;
   --text-secondary: #334155;
   --text-muted: #64748b;
@@ -201,8 +205,8 @@ html, body, #root {
 .confession-card:hover {
        transform: translateY(-6px);
   box-shadow: var(--shadow-lg);
-       border-color: rgba(255, 255, 255, 0.9);
-       background: rgba(255, 255, 255, 0.9);
+       border-color: var(--border-hover);
+       background: var(--bg-hover);
 }
 
 .card-header {
@@ -430,9 +434,9 @@ html, body, #root {
 }
 
 .auth-card {
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--bg-card);
   backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--border-light);
   border-radius: 32px;
   padding: 48px;
   max-width: 480px;
@@ -749,9 +753,9 @@ html, body, #root {
 .radio-player {
   z-index: 10;
   text-align: center;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--bg-card);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--border-light);
   padding: 48px;
   border-radius: 48px;
   box-shadow: var(--shadow-xl);
@@ -837,8 +841,8 @@ html, body, #root {
 
 .conversations-list {
   width: 340px;
-  border-right: 1px solid rgba(226, 232, 240, 0.6);
-  background: rgba(255, 255, 255, 0.6);
+  border-right: 1px solid var(--border-light);
+  background: var(--bg-secondary);
   backdrop-filter: blur(12px);
   overflow-y: auto;
 }
@@ -887,9 +891,9 @@ html, body, #root {
   align-items: center;
   gap: 16px;
   padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--bg-card);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  border-bottom: 1px solid var(--border-light);
 }
 
 .chat-messages {
@@ -976,7 +980,7 @@ html, body, #root {
   align-items: flex-start;
   gap: 16px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--bg-card);
   backdrop-filter: blur(12px);
   border-radius: 16px;
   margin-bottom: 12px;
@@ -1041,9 +1045,9 @@ html, body, #root {
   padding: 48px;
   border-radius: 32px;
   text-align: center;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--bg-card);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--border-strong);
   box-shadow: var(--shadow-xl);
   width: 100%;
   max-width: 400px;

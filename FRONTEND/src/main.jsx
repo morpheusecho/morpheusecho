@@ -20,10 +20,16 @@ if (!rootElement) {
   }
   favicon.href = transparentLogo;
 
-  // Forcefully strip any rogue dark mode classes from the HTML/Body tags
-  document.documentElement.classList.remove('dark');
-  document.body.className = '';
-  document.body.style.backgroundColor = '#fcfcfd';
+  // Respect saved theme instead of forcing light mode on load
+  const savedTheme = localStorage.getItem('morpheus_theme');
+  if (savedTheme === 'amoled') {
+    document.documentElement.classList.add('theme-amoled', 'dark');
+    document.body.style.backgroundColor = '#000000';
+  } else {
+    document.documentElement.classList.remove('dark', 'theme-amoled');
+    document.body.className = '';
+    document.body.style.backgroundColor = '#fcfcfd';
+  }
 
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>

@@ -405,6 +405,11 @@ const confessionSchema = new mongoose.Schema({
   content: { type: String },
   audioUrl: { type: String },
   audioDuration: { type: Number },
+  transcript: { type: String },
+  poll: {
+    question: String,
+    options: [{ text: String, votes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] }]
+  },
   voiceEffect: { type: String, enum: ['normal', 'whisper', 'deep', 'echo', 'robotic'], default: 'normal' },
   ambientSound: { type: String },
   categories: [{ type: String }],
@@ -971,7 +976,7 @@ app.get('/api/feed', authenticate, async (req, res) => {
 // Create Confession
 app.post('/api/confessions', authenticate, async (req, res) => {
   try {
-    const { type, content, audioUrl, audioDuration, voiceEffect, ambientSound, categories, mood, expiry } = req.body;
+    const { type, content, audioUrl, audioDuration, voiceEffect, ambientSound, categories, mood, expiry, poll, chainParent } = req.body;
     
     if (!type || !categories || categories.length === 0) {
       return res.status(400).json({ error: 'Type and at least one category required' });
@@ -999,6 +1004,14 @@ app.post('/api/confessions', authenticate, async (req, res) => {
       expiryDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     }
     
+    // Verify chainParent if provided (Thread creation)
+    if (chainParent) {
+      const parentExists = await Confession.findById(chainParent);
+      if (!parentExists || parentExists.author.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ error: 'Invalid parent whisper' });
+      }
+    }
+
     const confession = new Confession({
       author: req.user._id,
       authorName: req.user.anonymousName,
@@ -1006,6 +1019,9 @@ app.post('/api/confessions', authenticate, async (req, res) => {
       content: content || null,
       audioUrl: audioUrl || null,
       audioDuration: audioDuration || null,
+      transcript: type === 'voice' ? '[Echo AI Auto-Transcript] "This is an automatically generated text from the uploaded audio whisper..."' : null,
+      poll: poll && poll.options && poll.options.length >= 2 ? poll : undefined,
+      chainParent: chainParent || null,
       voiceEffect: voiceEffect || 'normal',
       ambientSound: ambientSound || null,
       categories,
@@ -1019,6 +1035,11 @@ app.post('/api/confessions', authenticate, async (req, res) => {
     
     await confession.save();
     
+    // Link the child to the parent's record
+    if (chainParent) {
+      await Confession.findByIdAndUpdate(chainParent, { $push: { chainChildren: confession._id } });
+    }
+
     // Award XP
     await awardXP(req.user._id, XP_REWARDS.POST_CONFESSION, 'POST_CONFESSION');
     
@@ -1180,6 +1201,36 @@ app.post('/api/confessions/:id/react', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Reaction error:', error);
     res.status(500).json({ error: 'Failed to process reaction' });
+  }
+});
+
+// Vote on Anonymous Poll
+app.post('/api/confessions/:id/vote', authenticate, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid confession ID' });
+    }
+    const { optionIndex } = req.body;
+    const confession = await Confession.findById(req.params.id);
+    if (!confession || !confession.poll || !confession.poll.options) {
+      return res.status(404).json({ error: 'Poll not found' });
+    }
+    
+    // Remove existing vote by this user across all options to prevent double-voting
+    confession.poll.options.forEach(opt => {
+      opt.votes = opt.votes.filter(id => id.toString() !== req.user._id.toString());
+    });
+    
+    // Add new vote to selected option
+    if (confession.poll.options[optionIndex]) {
+      confession.poll.options[optionIndex].votes.push(req.user._id);
+    }
+    
+    await confession.save();
+    res.json({ message: 'Vote recorded', poll: confession.poll });
+  } catch (error) {
+    console.error('Vote error:', error);
+    res.status(500).json({ error: 'Failed to process vote' });
   }
 });
 
