@@ -352,6 +352,11 @@ const ThemeToggle = () => {
 // =============================================================================
 // AUTH CONTEXT
 // =============================================================================
+
+export const DATA_CACHE = { profile: null, profileConfessions: [] };
+export const updateCache = (key, data) => { DATA_CACHE[key] = data; };
+export const clearCache = () => { DATA_CACHE.profile = null; DATA_CACHE.profileConfessions = []; };
+
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const AuthContext = createContext(null);
@@ -419,6 +424,7 @@ const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('morpheus_token');
     localStorage.removeItem('morpheus_user');
+    clearCache();
     setUser(null);
     navigate('/login');
   };
@@ -580,7 +586,11 @@ const FollowButton = ({ userId, initialFollowing, onFollowChange }) => {
     const nextState = !isFollowing;
     setIsFollowing(nextState);
     if (onFollowChange) {
-      await onFollowChange(nextState);
+      try {
+        await onFollowChange(nextState);
+      } catch (err) {
+        setIsFollowing(!nextState); // Rollback local state if API fails
+      }
     }
     setLoading(false);
   };
@@ -850,13 +860,17 @@ const ConfessionCard = ({ confession, onDelete }) => {
 
     try {
       const token = localStorage.getItem('morpheus_token');
-      await fetch(`${SOCKET_URL}/api/confessions/${confession._id}/comments`, {
+        const res = await fetch(`${SOCKET_URL}/api/confessions/${confession._id}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ content: optimisticComment.content })
       });
+        if (!res.ok) throw new Error('Failed to post comment');
     } catch (err) {
       console.error('Submit comment error:', err);
+        setComments(prev => prev.filter(c => c._id !== optimisticComment._id));
+        setLocalCommentCount(prev => prev - 1);
+        setNewComment(optimisticComment.content); // Restore input text so user can try again
     }
   };
 
@@ -864,6 +878,9 @@ const ConfessionCard = ({ confession, onDelete }) => {
     e.stopPropagation();
     if (!user) return;
     const currentUserId = user?.id || user?._id;
+    
+    // Keep a snapshot of previous poll for network rollback
+    const previousPoll = JSON.parse(JSON.stringify(localPoll));
     
     // Optimistic UI update
     setLocalPoll(prev => {
@@ -876,13 +893,15 @@ const ConfessionCard = ({ confession, onDelete }) => {
 
     try {
       const token = localStorage.getItem('morpheus_token');
-      await fetch(`${SOCKET_URL}/api/confessions/${confession._id}/vote`, {
+        const res = await fetch(`${SOCKET_URL}/api/confessions/${confession._id}/vote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ optionIndex })
       });
+        if (!res.ok) throw new Error('Failed to record vote');
     } catch (err) {
       console.error('Vote error:', err);
+        setLocalPoll(previousPoll); // Rollback optimistic update
     }
   };
 
@@ -1858,6 +1877,7 @@ const CreatePage = () => {
 
       if (!res.ok) throw new Error('Failed to post confession');
       
+      clearCache(); // Clear the profile cache so the new whisper appears immediately on the profile
       navigate('/');
     } catch (error) {
       console.error('Submit error:', error);
@@ -2045,13 +2065,16 @@ const RadioPage = () => {
 
   useEffect(() => {
     fetchRadioQueue();
+  }, [fetchRadioQueue]);
+
+  useEffect(() => {
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
       }
     };
-  }, [fetchRadioQueue]);
+  }, []);
 
   useEffect(() => {
     const handleStopAudio = (e) => {
@@ -2076,10 +2099,13 @@ const RadioPage = () => {
     }
 
     if (!audioRef.current || audioRef.current.src !== currentConfession.audioUrl) {
-      if (audioRef.current) {
+      if (!audioRef.current) {
+        audioRef.current = new Audio(currentConfession.audioUrl);
+      } else {
         audioRef.current.pause();
+        audioRef.current.src = currentConfession.audioUrl;
+        audioRef.current.load();
       }
-      audioRef.current = new Audio(currentConfession.audioUrl);
     }
 
         // Always update to the freshest callback to prevent stale array closures
@@ -2192,6 +2218,7 @@ const MessagesPage = () => {
     let isActive = true;
     isInitialScroll.current = true;
     setActiveUserProfile(null);
+    setLocalMessages([]); // Clear immediately to prevent flashing previous user's chat history
     
     // Set active user profile for header
     const existingConv = conversations.find(c => c.partner._id === selectedUser);
@@ -2249,7 +2276,7 @@ const MessagesPage = () => {
     };
     fetchMessages();
     return () => { isActive = false; };
-  }, [selectedUser, conversations, setUnreadCount, setUnreadMessageCount]);
+  }, [selectedUser, setUnreadCount, setUnreadMessageCount]); // Removed 'conversations' to prevent infinite re-fetch loops on new messages
 
   useEffect(() => {
     setIsPartnerTyping(false);
@@ -2531,7 +2558,6 @@ const NotificationsPage = () => {
         });
         if (res.ok) {
           setNotifications(prev => prev.map(n => n._id === notification._id ? { ...n, read: true } : n));
-          if (setUnreadCount) setUnreadCount(curr => Math.max(0, curr - 1));
         }
       } catch (err) {
         console.error('Failed to mark read:', err);
@@ -2599,9 +2625,6 @@ const NotificationsPage = () => {
 // =============================================================================
 // PROFILE PAGE (WITH FOLLOW BUTTON)
 // =============================================================================
-const DATA_CACHE = { profile: null, profileConfessions: [] };
-const updateCache = (key, data) => { DATA_CACHE[key] = data; };
-
 const ProfilePage = () => {
   const { id } = useParams();
   const { user: currentUser } = useAuth();
@@ -2621,12 +2644,19 @@ const ProfilePage = () => {
   const [passwordStatus, setPasswordStatus] = useState({ error: '', success: '', loading: false });
   const { updateUser, logout } = useAuth();
 
-  useEffect(() => {
-    setPage(1);
-  }, [targetId]);
+  // Track previous target to instantly reset state upon navigation
+  const prevTargetIdRef = useRef(targetId);
 
   useEffect(() => {
     if (!targetId) return;
+
+    if (prevTargetIdRef.current !== targetId) {
+      setPage(1);
+      setProfile(null);
+      setUserConfessions([]);
+      prevTargetIdRef.current = targetId;
+      return; // Skip fetch on this tick, wait for page 1 tick to prevent cross-contamination
+    }
     
     let isActive = true;
     if (page === 1) {
@@ -2755,6 +2785,9 @@ const ProfilePage = () => {
   const xpPercent = profile ? ((profile.xp % 100) / 100) * 100 : 0;
 
   const handleFollowChange = async (newStatus) => {
+    const prevFollowers = profile.followers;
+    const prevIsFollowing = profile.isFollowing;
+
     setProfile(prev => ({
       ...prev,
       followers: newStatus ? prev.followers + 1 : Math.max(0, prev.followers - 1),
@@ -2762,12 +2795,19 @@ const ProfilePage = () => {
     }));
     try {
       const token = localStorage.getItem('morpheus_token');
-      await fetch(`${SOCKET_URL}/api/users/${targetId}/follow`, {
+      const res = await fetch(`${SOCKET_URL}/api/users/${targetId}/follow`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (!res.ok) throw new Error('Follow API failed');
     } catch (err) {
       console.error('Follow error:', err);
+      setProfile(prev => ({
+        ...prev,
+        followers: prevFollowers,
+        isFollowing: prevIsFollowing
+      }));
+      throw err; // Inform FollowButton to rollback its internal state
     }
   };
 

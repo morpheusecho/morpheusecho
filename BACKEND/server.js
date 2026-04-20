@@ -850,6 +850,27 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(403).json({ error: 'Account has been banned' });
     }
     
+    // Daily Activity & Streak Logic
+    const lastActiveDate = new Date(user.lastActive || 0);
+    const today = new Date();
+    lastActiveDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    
+    const diffDays = Math.round((today - lastActiveDate) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) {
+      user.streak += 1;
+      await awardXP(user._id, XP_REWARDS.DAILY_ACTIVITY, 'DAILY_ACTIVITY');
+      if (user.streak === 7) await awardXP(user._id, XP_REWARDS.STREAK_7, 'STREAK_7');
+      if (user.streak === 30) await awardXP(user._id, XP_REWARDS.STREAK_30, 'STREAK_30');
+    } else if (diffDays > 1) {
+      user.streak = 1;
+      await awardXP(user._id, XP_REWARDS.DAILY_ACTIVITY, 'DAILY_ACTIVITY');
+    } else if (diffDays === 0 && !user.lastActive) {
+      user.streak = 1;
+      await awardXP(user._id, XP_REWARDS.DAILY_ACTIVITY, 'DAILY_ACTIVITY');
+    }
+
     // Update last active
     user.lastActive = new Date();
     await user.save();
@@ -911,7 +932,9 @@ app.get('/api/feed', authenticate, async (req, res) => {
     }
 
     if (search && search.trim() !== '') {
-      const searchRegex = new RegExp(search.trim(), 'i');
+      // Escape regex operators to prevent ReDoS attacks and server crashes
+      const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escapedSearch, 'i');
       query.$and = [
         {
           $or: [
@@ -984,6 +1007,10 @@ app.post('/api/confessions', authenticate, async (req, res) => {
     
     if (type === 'text' && (!content || content.trim().length === 0)) {
       return res.status(400).json({ error: 'Content required for text confession' });
+    }
+
+    if (type === 'text' && content && content.trim().split(/\s+/).length > 250) {
+      return res.status(400).json({ error: 'Confession exceeds 250 words limit' });
     }
     
     if (type === 'voice' && !audioUrl) {
@@ -1129,6 +1156,25 @@ app.delete('/api/confessions/:id', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to delete this confession' });
     }
 
+    // Cleanup orphaned parent references to prevent dead links in threads
+    if (confession.chainParent) {
+      await Confession.findByIdAndUpdate(confession.chainParent, {
+        $pull: { chainChildren: confession._id }
+      });
+    }
+
+    // Cleanup Cloudinary storage to prevent storage leaks
+    if (confession.type === 'voice' && confession.audioUrl) {
+      try {
+        const urlParts = confession.audioUrl.split('/');
+        const fileWithExt = urlParts[urlParts.length - 1];
+        const publicId = `morpheus_echo/audio/${fileWithExt.split('.')[0]}`;
+        await cloudinary.uploader.destroy(publicId, { resource_type: 'video' });
+      } catch (err) {
+        console.error('Cloudinary cleanup error:', err);
+      }
+    }
+
     await Confession.findByIdAndDelete(req.params.id);
     await User.findByIdAndUpdate(req.user._id, { $inc: { totalConfessions: -1 } });
     await Comment.deleteMany({ confession: req.params.id });
@@ -1158,13 +1204,12 @@ app.post('/api/confessions/:id/react', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Confession not found' });
     }
     
-    const reactionArray = confession.reactions[reactionType];
-    const userIndex = reactionArray.findIndex(id => id.toString() === req.user._id.toString());
     const isSelfReaction = confession.author.toString() === req.user._id.toString();
+    const hasReacted = confession.reactions[reactionType] && confession.reactions[reactionType].includes(req.user._id);
     
     let action;
-    if (userIndex > -1) {
-      reactionArray.splice(userIndex, 1);
+    if (hasReacted) {
+      await Confession.findByIdAndUpdate(req.params.id, { $pull: { [`reactions.${reactionType}`]: req.user._id } });
       action = 'removed';
       
       if (!isSelfReaction) {
@@ -1172,7 +1217,7 @@ app.post('/api/confessions/:id/react', authenticate, async (req, res) => {
         await User.findByIdAndUpdate(confession.author, { $inc: { totalReactions: -1 } });
       }
     } else {
-      reactionArray.push(req.user._id);
+      await Confession.findByIdAndUpdate(req.params.id, { $addToSet: { [`reactions.${reactionType}`]: req.user._id } });
       action = 'added';
       
       if (!isSelfReaction) {
@@ -1190,13 +1235,13 @@ app.post('/api/confessions/:id/react', authenticate, async (req, res) => {
       }
     }
     
-    await confession.save();
+    const updatedConfession = await Confession.findById(req.params.id);
     
     res.json({
       message: `Reaction ${action}`,
       action,
       reactionType,
-      count: reactionArray.length
+      count: updatedConfession.reactions[reactionType].length
     });
   } catch (error) {
     console.error('Reaction error:', error);
@@ -1218,7 +1263,7 @@ app.post('/api/confessions/:id/vote', authenticate, async (req, res) => {
     
     // Remove existing vote by this user across all options to prevent double-voting
     confession.poll.options.forEach(opt => {
-      opt.votes = opt.votes.filter(id => id.toString() !== req.user._id.toString());
+      opt.votes.pull(req.user._id);
     });
     
     // Add new vote to selected option
