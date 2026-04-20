@@ -1582,6 +1582,8 @@ const IdentityRevealPage = () => {
 const HomePage = () => {
   const [confessions, setConfessions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { logout } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('trending');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1600,13 +1602,20 @@ const HomePage = () => {
     const fetchFeed = async () => {
       if (page === 1) setLoading(true);
       else setIsLoadingMore(true);
+      setError(null);
       
       try {
         const token = localStorage.getItem('morpheus_token');
         const response = await fetch(`${SOCKET_URL}/api/feed?category=${selectedCategory}&sort=${sortBy}&page=${page}&limit=10&search=${encodeURIComponent(searchQuery)}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (!response.ok) throw new Error('Failed to fetch feed');
+        if (!response.ok) {
+          if (response.status === 401) {
+            logout();
+            return;
+          }
+          throw new Error('Failed to fetch feed');
+        }
         const data = await response.json();
         
         if (!isActive) return;
@@ -1625,13 +1634,9 @@ const HomePage = () => {
         if (!isActive) return;
         
         if (page === 1) {
-          let filteredMocks = MOCK_CONFESSIONS;
-          if (searchQuery) {
-            const q = searchQuery.toLowerCase();
-            filteredMocks = filteredMocks.filter(c => c.content?.toLowerCase().includes(q) || c.authorName?.toLowerCase().includes(q));
-          }
-          setConfessions(filteredMocks);
+          setConfessions([]);
           setHasMore(false);
+          setError('Cannot connect to the server. Your backend might be asleep or unreachable.');
         }
       } finally {
         setLoading(false);
@@ -1682,7 +1687,12 @@ const HomePage = () => {
 
       <div className="p-4">
         <div className="space-y-4">
-          {loading ? (
+          {error ? (
+            <div className="text-center text-red-400 py-12 bg-red-500/10 rounded-xl border border-red-500/20">
+              <p className="font-semibold mb-2">{error}</p>
+              <button onClick={() => { setPage(1); setConfessions([]); }} className="text-sm px-4 py-2 bg-red-500/20 text-red-300 rounded-full hover:bg-red-500/30 transition-colors">Try Again</button>
+            </div>
+          ) : loading ? (
             <>
               {[1, 2, 3].map(i => <ConfessionSkeleton key={i} />)}
             </>
@@ -2015,18 +2025,27 @@ const CreatePage = () => {
 const RadioPage = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentConfession, setCurrentConfession] = useState(null);
+  const [error, setError] = useState(null);
+  const { logout } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [queue, setQueue] = useState([]);
   const [queueCount, setQueueCount] = useState(0);
   const audioRef = useRef(null);
 
   const fetchRadioQueue = useCallback(async () => {
+    setError(null);
     try {
       const token = localStorage.getItem('morpheus_token');
       const res = await fetch(`${SOCKET_URL}/api/radio?category=${selectedCategory}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error('Failed to fetch radio queue');
+      if (!res.ok) {
+        if (res.status === 401) {
+          logout();
+          return;
+        }
+        throw new Error('Failed to fetch radio queue');
+      }
       const data = await res.json();
       
       if (data.queue && data.queue.length > 0) {
@@ -2034,22 +2053,18 @@ const RadioPage = () => {
         setCurrentConfession(data.queue[0]);
         setQueueCount(data.queueLength);
       } else {
-        // Fallback to mock data if the database is empty so the UI doesn't break
-        let mockQueue = MOCK_CONFESSIONS.filter(c => c.type === 'voice' && (selectedCategory === 'all' || c.categories.includes(selectedCategory)));
-        if (mockQueue.length === 0) mockQueue = MOCK_CONFESSIONS; // Prevent infinite crash loop on empty categories
-        setQueue(mockQueue);
-        setCurrentConfession(mockQueue[0] || MOCK_CONFESSIONS[1]);
-        setQueueCount(mockQueue.length);
+        setQueue([]);
+        setCurrentConfession(null);
+        setQueueCount(0);
       }
     } catch (err) {
       console.error('Radio fetch error:', err);
-      let mockQueue = MOCK_CONFESSIONS.filter(c => c.type === 'voice' && (selectedCategory === 'all' || c.categories.includes(selectedCategory)));
-      if (mockQueue.length === 0) mockQueue = MOCK_CONFESSIONS;
-      setQueue(mockQueue);
-      setCurrentConfession(mockQueue[0] || MOCK_CONFESSIONS[1]);
-      setQueueCount(mockQueue.length);
+      setQueue([]);
+      setCurrentConfession(null);
+      setQueueCount(0);
+      setError('Failed to connect to the server.');
     }
-  }, [selectedCategory]);
+  }, [selectedCategory, logout]);
 
   const handleNext = useCallback(() => {
     if (queue.length > 1) {
@@ -2139,6 +2154,14 @@ const RadioPage = () => {
         </div>
       </div>
 
+      {error ? (
+        <div className="text-center text-red-400 p-6 bg-red-500/10 rounded-xl border border-red-500/20 z-10 mx-4 w-[calc(100%-2rem)]">
+          <p className="font-semibold mb-2">{error}</p>
+          <button onClick={fetchRadioQueue} className="text-sm px-4 py-2 bg-red-500/20 text-red-300 rounded-full hover:bg-red-500/30 transition-colors">Try Again</button>
+        </div>
+      ) : queueCount === 0 ? (
+        <div className="text-center text-[var(--text-muted)] p-6 z-10 mx-4">No whispers found.</div>
+      ) : (
       <div className="radio-player">
         <div className={`radio-orb ${getRarityOrbClass(currentConfession?.author?.rarity)} overflow-hidden`}>
           {currentConfession?.author?.avatarUrl ? (
@@ -2163,6 +2186,7 @@ const RadioPage = () => {
 
         <p className="mt-8 text-[var(--text-muted)] text-sm">{queueCount} whispers in queue</p>
       </div>
+      )}
     </div>
   );
 };
