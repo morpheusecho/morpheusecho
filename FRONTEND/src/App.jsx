@@ -1096,7 +1096,7 @@ const ConfessionCard = ({ confession, onDelete }) => {
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/></svg>
             </button>
           )}
-          {user && confession.author?._id === (user?.id || user?._id) && (
+          {user && (confession.author?._id === (user?.id || user?._id) || user?.isAdmin) && (
             <button className="action-btn text-red-400 hover:text-red-500" title="Delete" onClick={handleDelete}>
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
@@ -1614,7 +1614,7 @@ const HomePage = () => {
   const [confessions, setConfessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { logout } = useAuth();
+  const { logout, user, updateUser } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('trending');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1622,6 +1622,13 @@ const HomePage = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // Admin State
+  const [showAdminAuth, setShowAdminAuth] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminError, setAdminError] = useState('');
+  const [adminData, setAdminData] = useState({ users: [], stats: null });
 
   useEffect(() => {
     setPage(1);
@@ -1682,9 +1689,52 @@ const HomePage = () => {
     setConfessions(prev => prev.filter(c => c._id !== id));
   };
 
+  const handleAdminAuthSubmit = async (e) => {
+    e.preventDefault();
+    setAdminError('');
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}/api/admin/promote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ password: adminPassword })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        updateUser({ isAdmin: true });
+        setShowAdminAuth(false);
+        setShowAdminPanel(true);
+        fetchAdminData();
+      } else {
+        setAdminError(data.error || 'Invalid password');
+      }
+    } catch (err) {
+      setAdminError('Connection error');
+    }
+  };
+
+  const fetchAdminData = async () => {
+    const token = localStorage.getItem('morpheus_token');
+    const [statsRes, usersRes] = await Promise.all([
+      fetch(`${SOCKET_URL}/api/stats`),
+      fetch(`${SOCKET_URL}/api/admin/users`, { headers: { 'Authorization': `Bearer ${token}` } })
+    ]);
+    setAdminData({
+      stats: statsRes.ok ? await statsRes.json() : null,
+      users: usersRes.ok ? await usersRes.json() : []
+    });
+  };
+
+  const toggleUserBan = async (userId) => {
+    const token = localStorage.getItem('morpheus_token');
+    const res = await fetch(`${SOCKET_URL}/api/admin/users/${userId}/ban`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` } });
+    if (res.ok) fetchAdminData();
+  };
+
   return (
     <div className="min-h-screen pb-20 md:pb-0">
       <div className="sticky top-0 z-10 bg-[var(--bg-secondary)] backdrop-blur-xl border-b border-[var(--border-light)]">
+        <div className="absolute top-0 left-0 w-12 h-12 z-50 cursor-pointer opacity-0" onDoubleClick={() => user?.isAdmin ? setShowAdminPanel(true) : setShowAdminAuth(true)} title="Top Secret Area"></div>
         <div className="p-4">
           <form onSubmit={(e) => { e.preventDefault(); setSearchQuery(searchInput); }} className="mb-4 flex gap-2">
             <div className="relative flex-1">
@@ -1747,6 +1797,70 @@ const HomePage = () => {
           )}
         </div>
       </div>
+
+      {/* Admin Auth Modal */}
+      <AnimatePresence>
+        {showAdminAuth && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setShowAdminAuth(false)}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} onClick={e => e.stopPropagation()} className="bg-[var(--bg-card)] border border-[var(--border-strong)] p-6 rounded-2xl shadow-2xl w-full max-w-sm">
+              <h2 className="text-xl font-display text-[var(--accent-primary)] mb-4 text-center">Admin Override</h2>
+              {adminError && <p className="text-red-500 text-sm mb-4 text-center">{adminError}</p>}
+              <form onSubmit={handleAdminAuthSubmit} className="flex flex-col gap-4">
+                <input type="password" placeholder="Passcode" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="input-field text-center tracking-[0.5em]" autoFocus required />
+                <button type="submit" className="btn-primary">Access Controls</button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Admin Control Panel */}
+      <AnimatePresence>
+        {showAdminPanel && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setShowAdminPanel(false)}>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} onClick={e => e.stopPropagation()} className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+              <div className="p-4 border-b border-[var(--border-strong)] flex justify-between items-center bg-[var(--bg-card)]">
+                <h2 className="text-xl font-display text-[var(--accent-primary)] font-bold flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Echo Admin Matrix</h2>
+                <button onClick={() => setShowAdminPanel(false)} className="text-[var(--text-muted)] hover:text-white p-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1 hide-scrollbar">
+                {adminData.stats && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <div className="bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-light)] text-center"><p className="text-2xl font-bold text-[var(--accent-primary)]">{adminData.stats.totalUsers}</p><p className="text-xs text-[var(--text-muted)] uppercase">Total Users</p></div>
+                    <div className="bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-light)] text-center"><p className="text-2xl font-bold text-[var(--accent-primary)]">{adminData.stats.totalConfessions}</p><p className="text-xs text-[var(--text-muted)] uppercase">Whispers</p></div>
+                    <div className="bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-light)] text-center"><p className="text-2xl font-bold text-[var(--accent-primary)]">{adminData.stats.totalVoiceConfessions}</p><p className="text-xs text-[var(--text-muted)] uppercase">Voice Uploads</p></div>
+                    <div className="bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-light)] text-center"><p className="text-2xl font-bold text-[var(--accent-primary)]">{adminData.stats.activeToday}</p><p className="text-xs text-[var(--text-muted)] uppercase">Active Today</p></div>
+                  </div>
+                )}
+                <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">User Matrix (Latest 200)</h3>
+                <div className="bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left text-[var(--text-secondary)]">
+                      <thead className="text-xs text-[var(--text-muted)] uppercase bg-[var(--bg-hover)] border-b border-[var(--border-light)]">
+                        <tr><th className="px-4 py-3">Identity</th><th className="px-4 py-3">Real Username</th><th className="px-4 py-3">Level</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Action</th></tr>
+                      </thead>
+                      <tbody>
+                        {adminData.users.map(u => (
+                          <tr key={u._id} className="border-b border-[var(--border-light)] hover:bg-[var(--bg-hover)]">
+                            <td className="px-4 py-3 font-semibold text-[var(--text-primary)]">{u.anonymousName}</td>
+                            <td className="px-4 py-3">{u.username}</td>
+                            <td className="px-4 py-3">Lvl {u.level}</td>
+                            <td className="px-4 py-3">{u.isBanned ? <span className="text-red-500 font-bold">BANNED</span> : <span className="text-green-500">Active</span>}</td>
+                            <td className="px-4 py-3">
+                              <button onClick={() => toggleUserBan(u._id)} className={`px-3 py-1 rounded-full text-xs font-bold text-white ${u.isBanned ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}>{u.isBanned ? 'Unban' : 'Ban'}</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <p className="text-xs text-[var(--text-muted)] text-center mt-6">Note: Since you are currently Admin, the "Delete" icon (trash can) is now visible on all whispers in the main feed. You can freely moderate content directly from the timeline.</p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

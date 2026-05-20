@@ -1,4 +1,4 @@
-﻿# MORPHEUS ECHO - DEPLOYMENT GUIDE
+﻿﻿# MORPHEUS ECHO - DEPLOYMENT GUIDE
 
 ## Environment Variables Template
 
@@ -13,6 +13,17 @@ JWT_EXPIRES_IN=7d
 CLOUDINARY_CLOUD_NAME=your_cloud_name_here
 CLOUDINARY_API_KEY=your_api_key_here
 CLOUDINARY_API_SECRET=your_api_secret_here
+
+# Admin Configuration
+ADMIN_PASSWORD=79827
+
+# AI Content Moderation APIs (Optional)
+GEMINI_API_KEY=your_gemini_api_key_here
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Redis Configuration (Optional - For Upstash)
+REDIS_URL=your_redis_url_here
+UPSTASH_REDIS_REST_TOKEN=your_redis_token_here
 \\\
 
 ## Important Security Notes

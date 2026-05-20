@@ -69,7 +69,10 @@ const CONFIG = {
 
   // AI APIs
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+
+  // Admin Settings
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || '79827'
 };
 
 // Validate required environment variables
@@ -895,6 +898,7 @@ app.post('/api/auth/login', async (req, res) => {
         title: user.title,
         streak: user.streak,
         badges: user.badges,
+        isAdmin: user.isAdmin,
         totalConfessions: user.totalConfessions,
         totalReactions: user.totalReactions,
         followers: user.followers.length,
@@ -1464,6 +1468,7 @@ app.get('/api/users/:id', authenticate, async (req, res) => {
         followers: user.followers.length,
         following: user.following.length,
         joinedAt: user.createdAt,
+        isAdmin: user.isAdmin,
         isFollowing
       }
     });
@@ -1850,6 +1855,49 @@ app.get('/api/confessions/random', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Random confession error:', error);
     res.status(500).json({ error: 'Failed to load confession' });
+  }
+});
+
+// =============================================================================
+// ADMIN ROUTES
+// =============================================================================
+
+// Verify Admin Password & Promote User
+app.post('/api/admin/promote', authenticate, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (password === CONFIG.ADMIN_PASSWORD) {
+      await User.findByIdAndUpdate(req.user._id, { isAdmin: true });
+      res.json({ success: true, message: 'Promoted to Admin' });
+    } else {
+      res.status(403).json({ error: 'Invalid admin password' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Admin promotion failed' });
+  }
+});
+
+// Get All Users (Admin Only)
+app.get('/api/admin/users', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const users = await User.find().select('username anonymousName level isBanned createdAt').sort({ createdAt: -1 }).limit(200);
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Toggle Ban Status
+app.patch('/api/admin/users/:id/ban', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const user = await User.findById(req.params.id);
+    user.isBanned = !user.isBanned;
+    await user.save();
+    res.json({ success: true, isBanned: user.isBanned });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update ban status' });
   }
 });
 
