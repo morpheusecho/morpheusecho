@@ -2039,12 +2039,38 @@ app.get('/api/confessions/random', authenticate, async (req, res) => {
 // ADMIN ROUTES
 // =============================================================================
 
+// Simple in-memory rate limiter for admin passcode attempts
+const adminLoginAttempts = new Map();
+// Cleanup old entries every hour to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, attempts] of adminLoginAttempts.entries()) {
+    if (now - attempts.firstAttempt > 900000) { // 15 mins
+      adminLoginAttempts.delete(userId);
+    }
+  }
+}, 60 * 60 * 1000);
+
 // Verify Admin Password & Promote User
 app.post('/api/admin/promote', authenticate, async (req, res) => {
   try {
+    const userId = req.user._id.toString();
+    const now = Date.now();
+    const attempts = adminLoginAttempts.get(userId) || { count: 0, firstAttempt: now };
+
+    // Reset attempts after 15 minutes (900000 ms)
+    if (now - attempts.firstAttempt > 900000) {
+      attempts.count = 0;
+      attempts.firstAttempt = now;
+    }
+    if (attempts.count >= 5) {
+      return res.status(429).json({ error: 'Too many failed attempts. Try again in 15 minutes.' });
+    }
+
     // Read from header for better security
     const password = req.headers['x-admin-passcode'];
     if (password === CONFIG.ADMIN_PASSWORD) {
+      adminLoginAttempts.delete(userId); // Clear attempts on success
       const updatedUser = await User.findByIdAndUpdate(req.user._id, { isAdmin: true }, { new: true });
 
       const token = jwt.sign(
@@ -2076,6 +2102,8 @@ app.post('/api/admin/promote', authenticate, async (req, res) => {
         }
       });
     } else {
+      attempts.count += 1;
+      adminLoginAttempts.set(userId, attempts);
       res.status(403).json({ error: 'Invalid admin password' });
     }
   } catch (error) {
