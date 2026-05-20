@@ -2656,16 +2656,18 @@ app.get('/api/admin/dashboard-stats', authenticate, async (req, res) => {
       newWhispers24h, newWhispers7d, newWhispers30d,
       categoryDistribution,
       userGrowth,
+      whisperGrowth,
       recentFlagged
     ] = await Promise.all([
       // Core Stats
       (async () => {
-        const [totalUsers, totalConfessions, activeToday] = await Promise.all([
+        const [totalUsers, totalConfessions, activeToday, totalComments] = await Promise.all([
           User.countDocuments(),
           Confession.countDocuments(),
-          User.countDocuments({ lastActive: { $gte: d24h } })
+          User.countDocuments({ lastActive: { $gte: d24h } }),
+          Comment.countDocuments()
         ]);
-        return { totalUsers, totalConfessions, activeToday };
+        return { totalUsers, totalConfessions, activeToday, totalComments };
       })(),
       // New Users
       User.countDocuments({ createdAt: { $gte: d24h } }),
@@ -2691,6 +2693,16 @@ app.get('/api/admin/dashboard-stats', authenticate, async (req, res) => {
         },
         { $sort: { _id: 1 } }
       ]),
+      // Whisper Growth (last 30 days)
+      Confession.aggregate([
+        { $match: { createdAt: { $gte: d30 } } },
+        { $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]),
       // Recently Flagged
       Confession.find({ isFlagged: true }).sort({ createdAt: -1 }).limit(5).select('content authorName')
     ]);
@@ -2706,7 +2718,7 @@ app.get('/api/admin/dashboard-stats', authenticate, async (req, res) => {
       coreStats,
       growth: { users: { d24h: newUsers24h, d7: newUsers7d, d30: newUsers30d }, whispers: { d24h: newWhispers24h, d7: newWhispers7d, d30: newWhispers30d } },
       content: { categoryDistribution, recentFlagged },
-      charts: { userGrowth },
+      charts: { userGrowth, whisperGrowth },
       financials
     });
 

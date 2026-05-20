@@ -3412,16 +3412,23 @@ const AdminDashboard = () => {
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
         <StatCard title="Total Users" value={stats.coreStats.totalUsers} change={stats.growth.users.d24h} period="24h" />
         <StatCard title="Total Whispers" value={stats.coreStats.totalConfessions} change={stats.growth.whispers.d24h} period="24h" />
+        <StatCard title="Total Comments" value={stats.coreStats.totalComments} />
         <StatCard title="Active Today" value={stats.coreStats.activeToday} />
         <StatCard title="Projected Revenue" value={`$${stats.financials.projectedRevenue.toFixed(2)}`} />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
-          <h2 className="font-semibold mb-4">New User Growth (Last 30 Days)</h2>
-          <LineChart data={stats.charts.userGrowth} label="user-growth" />
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+            <h2 className="font-semibold mb-4">New User Growth (Last 30 Days)</h2>
+            <LineChart data={stats.charts.userGrowth} label="user-growth" />
+          </div>
+          <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+            <h2 className="font-semibold mb-4">Whisper Activity (Last 30 Days)</h2>
+            <LineChart data={stats.charts.whisperGrowth} label="whisper-growth" color="#0ea5e9" />
+          </div>
         </div>
         <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
           <h2 className="font-semibold mb-4">Content by Category</h2>
