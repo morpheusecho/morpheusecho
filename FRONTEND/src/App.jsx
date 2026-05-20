@@ -676,7 +676,7 @@ const AuthorOrb = ({ rarity, size = 40, avatarUrl }) => (
 // =============================================================================
 // CONFESSION CARD
 // =============================================================================
-const ConfessionCard = ({ confession, onDelete }) => {
+const ConfessionCard = ({ confession, onDelete, onRefresh }) => {
   const { user } = useAuth();
   const [isRevealed, setIsRevealed] = useState(false);
   const [holdProgress, setHoldProgress] = useState(0);
@@ -695,7 +695,8 @@ const ConfessionCard = ({ confession, onDelete }) => {
   const [isSubmittingUpdate, setIsSubmittingUpdate] = useState(false);
   const progressInterval = useRef(null);
   const holdTimeoutRef = useRef(null);
-  const audioRef = useRef(null);  const [showAdminMenu, setShowAdminMenu] = useState(false); const { onRefresh } = props;
+  const audioRef = useRef(null);
+  const [showAdminMenu, setShowAdminMenu] = useState(false);
   const waveformHeights = useMemo(() => Array.from({ length: 30 }).map(() => Math.random() * 30 + 10), [confession._id]);
   const { socket } = useSocket() || {};
 

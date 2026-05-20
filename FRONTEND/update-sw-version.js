@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Path to your service worker file
-const swPath = path.join(__dirname, 'src', 'sw.js');
+const swPath = path.join(__dirname, 'public', 'sw.js');
 
 // Read the current service worker file
 let swContent = fs.readFileSync(swPath, 'utf8');
