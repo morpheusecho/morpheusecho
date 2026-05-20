@@ -695,8 +695,9 @@ const ConfessionCard = ({ confession, onDelete }) => {
   const [isSubmittingUpdate, setIsSubmittingUpdate] = useState(false);
   const progressInterval = useRef(null);
   const holdTimeoutRef = useRef(null);
-  const audioRef = useRef(null);
+  const audioRef = useRef(null);  const [showAdminMenu, setShowAdminMenu] = useState(false); const { onRefresh } = props;
   const waveformHeights = useMemo(() => Array.from({ length: 30 }).map(() => Math.random() * 30 + 10), [confession._id]);
+  const { socket } = useSocket() || {};
 
   useEffect(() => {
     const handleStopAudio = (e) => {
@@ -708,6 +709,27 @@ const ConfessionCard = ({ confession, onDelete }) => {
     window.addEventListener('stop_all_audio', handleStopAudio);
     return () => window.removeEventListener('stop_all_audio', handleStopAudio);
   }, [confession._id, isPlaying]);
+
+  // Real-time listeners for comments and reactions
+  useEffect(() => {
+    if (!socket || !showComments) return;
+
+    const handleNewComment = (newCommentData) => {
+      if (newCommentData.confession === confession._id) {
+        setComments(prev => [newCommentData, ...prev]);
+        setLocalCommentCount(prev => prev + 1);
+      }
+    };
+    const handleReactionUpdate = (data) => {
+      if (data.confessionId === confession._id) {
+        setLocalReactions(data.reactions);
+      }
+    };
+
+    socket.on('new_comment', handleNewComment);
+    socket.on('reaction_update', handleReactionUpdate);
+    return () => { socket.off('new_comment', handleNewComment); socket.off('reaction_update', handleReactionUpdate); };
+  }, [socket, showComments, confession._id]);
 
   useEffect(() => {
     return () => {
@@ -795,6 +817,42 @@ const ConfessionCard = ({ confession, onDelete }) => {
     }
   };
 
+  const handleReportConfession = async (e) => {
+    e.stopPropagation();
+    if (!user) return alert('Please login to report content');
+    if (!window.confirm('Report this whisper for inappropriate content?')) return;
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}/api/confessions/${confession._id}/report`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) alert('Report submitted successfully. Thank you for keeping the community safe.');
+      else alert(data.error || 'Failed to submit report');
+    } catch (err) {
+      console.error('Report error:', err);
+    }
+  };
+
+  const handleReportComment = async (commentId, e) => {
+    e.stopPropagation();
+    if (!user) return alert('Please login to report content');
+    if (!window.confirm('Report this comment for inappropriate content?')) return;
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}/api/comments/${commentId}/report`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) alert('Comment reported successfully.');
+      else alert(data.error || 'Failed to submit report');
+    } catch (err) {
+      console.error('Report error:', err);
+    }
+  };
+
   const handleDelete = async (e) => {
     e.stopPropagation();
     if (!window.confirm('Are you sure you want to permanently delete this whisper?')) return;
@@ -812,6 +870,18 @@ const ConfessionCard = ({ confession, onDelete }) => {
       console.error('Delete error:', err);
     }
   };
+
+  const handleAdminAction = async (endpoint, method, body) => {
+    const token = localStorage.getItem('morpheus_token');
+    await fetch(`${SOCKET_URL}${endpoint}`, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : null
+    });
+    // After action, refresh the feed
+    if (onRefresh) onRefresh();
+};
+
 
   const handleShare = async (e) => {
     e.stopPropagation();
@@ -854,6 +924,10 @@ const ConfessionCard = ({ confession, onDelete }) => {
 
   const toggleComments = async (e) => {
     e.stopPropagation();
+    if (socket) {
+      if (!showComments) socket.emit('join_confession', confession._id);
+      else socket.emit('leave_confession', confession._id);
+    }
     if (!showComments) {
       setShowComments(true);
       setLoadingComments(true);
@@ -1096,6 +1170,23 @@ const ConfessionCard = ({ confession, onDelete }) => {
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/></svg>
             </button>
           )}
+          {user?.isAdmin && (
+            <div className="relative">
+              <button className="action-btn" title="Admin Actions" onClick={(e) => { e.stopPropagation(); setShowAdminMenu(!showAdminMenu); }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </button>
+              <AnimatePresence>
+              {showAdminMenu && (
+                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="absolute right-0 bottom-full mb-2 w-48 bg-[var(--bg-card)] border border-[var(--border-strong)] rounded-lg shadow-xl z-20 overflow-hidden" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => { const newContent = prompt('Enter new content:', confession.content); if (newContent) handleAdminAction(`/api/admin/whispers/${confession._id}/content`, 'PATCH', { content: newContent }); setShowAdminMenu(false); }} className="admin-menu-item">Edit Content</button>
+                  <button onClick={() => { handleAdminAction(`/api/admin/whispers/${confession._id}/pin`, 'PATCH'); setShowAdminMenu(false); }} className="admin-menu-item">{confession.isPinned ? 'Unpin' : 'Pin Whisper'}</button>
+                  <button onClick={() => { handleAdminAction(`/api/admin/whispers/${confession._id}/lock`, 'PATCH'); setShowAdminMenu(false); }} className="admin-menu-item">{confession.isLocked ? 'Unlock Comments' : 'Lock Comments'}</button>
+                  <button onClick={() => { handleAdminAction(`/api/admin/whispers/${confession._id}/manual-flag`, 'PATCH'); setShowAdminMenu(false); }} className="admin-menu-item text-orange-400">Manual Flag</button>
+                </motion.div>
+              )}
+              </AnimatePresence>
+            </div>
+          )}
           {user && (confession.author?._id === (user?.id || user?._id) || user?.isAdmin) && (
             <button className="action-btn text-red-400 hover:text-red-500" title="Delete" onClick={handleDelete}>
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -1106,6 +1197,11 @@ const ConfessionCard = ({ confession, onDelete }) => {
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
             </Link>
           )}
+      {user && confession.author?._id !== (user?.id || user?._id) && (
+        <button className="action-btn text-[var(--text-muted)] hover:text-orange-500" title="Report Whisper" onClick={handleReportConfession}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+        </button>
+      )}
           <button className="action-btn" title={copied ? "Copied!" : "Share"} onClick={handleShare}>
             {copied ? (
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500"><polyline points="20 6 9 17 4 12"/></svg>
@@ -1151,7 +1247,14 @@ const ConfessionCard = ({ confession, onDelete }) => {
                         <Link to={`/profile/${comment.author?._id || comment.author?.id}`} onClick={(e) => e.stopPropagation()} className={`font-semibold text-xs hover:underline ${getRarityTextClass(comment.author?.rarity)}`}>
                           {comment.authorName}
                         </Link>
-                        <span className="text-[10px] text-[var(--text-muted)]">{formatRelativeTime(comment.createdAt)}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-[var(--text-muted)]">{formatRelativeTime(comment.createdAt)}</span>
+                  {user && comment.author?._id !== (user?.id || user?._id) && (
+                    <button onClick={(e) => handleReportComment(comment._id, e)} className="text-[var(--text-muted)] hover:text-orange-500" title="Report Comment">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+                    </button>
+                  )}
+                </div>
                       </div>
                       <p className="text-[var(--text-primary)]">{comment.content}</p>
                     </div>
@@ -1614,7 +1717,7 @@ const HomePage = () => {
   const [confessions, setConfessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { logout, user, updateUser } = useAuth();
+  const { logout, user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('trending');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1622,28 +1725,28 @@ const HomePage = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-
-  // Admin State
-  const [showAdminAuth, setShowAdminAuth] = useState(false);
-  const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
-  const [adminError, setAdminError] = useState('');
-  const [adminData, setAdminData] = useState({ users: [], stats: null, flagged: [], system: null });
-  const [adminTab, setAdminTab] = useState('dashboard');
-  const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [showNewWhisperBanner, setShowNewWhisperBanner] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setPage(1);
     setConfessions([]);
   }, [selectedCategory, sortBy, searchQuery]);
 
+  const { socket } = useSocket() || {};
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewWhisper = () => setShowNewWhisperBanner(true);
+    socket.on('new_whisper_in_feed', handleNewWhisper);
+    return () => socket.off('new_whisper_in_feed', handleNewWhisper);
+  }, [socket]);
+
   // Keyboard shortcut for Admin Panel (Ctrl+Shift+A)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
         e.preventDefault();
-        if (user?.isAdmin) setShowAdminPanel(true);
-        else setShowAdminAuth(true);
+        navigate('/admin');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1699,70 +1802,21 @@ const HomePage = () => {
     fetchFeed();
     return () => { isActive = false; };
   }, [selectedCategory, sortBy, searchQuery, page]);
+  
+  const refreshFeed = useCallback(() => {
+    setPage(1);
+    setConfessions([]);
+    setShowNewWhisperBanner(false);
+  }, []);
 
   const handleDeleteConfession = (id) => {
     setConfessions(prev => prev.filter(c => c._id !== id));
   };
 
-  const handleAdminAuthSubmit = async (e) => {
-    e.preventDefault();
-    setAdminError('');
-    try {
-      const token = localStorage.getItem('morpheus_token');
-      const res = await fetch(`${SOCKET_URL}/api/admin/promote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ password: adminPassword })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        updateUser({ isAdmin: true });
-        setShowAdminAuth(false);
-        setShowAdminPanel(true);
-        fetchAdminData();
-      } else {
-        setAdminError(data.error || 'Invalid password');
-      }
-    } catch (err) {
-      setAdminError('Connection error');
-    }
-  };
-
-  const fetchAdminData = async () => {
-    const token = localStorage.getItem('morpheus_token');
-    const headers = { 'Authorization': `Bearer ${token}` };
-    const [statsRes, usersRes, flaggedRes, sysRes] = await Promise.all([
-      fetch(`${SOCKET_URL}/api/stats`),
-      fetch(`${SOCKET_URL}/api/admin/users`, { headers }),
-      fetch(`${SOCKET_URL}/api/admin/whispers/flagged`, { headers }),
-      fetch(`${SOCKET_URL}/api/admin/system`, { headers })
-    ]);
-    setAdminData({
-      stats: statsRes.ok ? await statsRes.json() : null,
-      users: usersRes.ok ? await usersRes.json() : [],
-      flagged: flaggedRes.ok ? await flaggedRes.json() : [],
-      system: sysRes.ok ? await sysRes.json() : null
-    });
-  };
-
-  // Generic Admin Action Handler
-  const executeAdminAction = async (endpoint, method = 'POST', body = null) => {
-    const token = localStorage.getItem('morpheus_token');
-    const res = await fetch(`${SOCKET_URL}${endpoint}`, { method, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : null });
-    if (res.ok) fetchAdminData();
-    else alert('Admin action failed');
-  };
-
-  const toggleUserBan = async (userId) => {
-    const token = localStorage.getItem('morpheus_token');
-    const res = await fetch(`${SOCKET_URL}/api/admin/users/${userId}/ban`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` } });
-    if (res.ok) fetchAdminData();
-  };
-
   return (
     <div className="min-h-screen pb-20 md:pb-0">
       <div className="sticky top-0 z-10 bg-[var(--bg-secondary)] backdrop-blur-xl border-b border-[var(--border-light)]">
-        <div className="absolute top-0 left-0 w-20 h-20 z-50 cursor-pointer opacity-0 hover:opacity-100 hover:bg-red-500/20 transition-all duration-300 rounded-br-3xl flex items-start justify-start p-2" onDoubleClick={() => user?.isAdmin ? setShowAdminPanel(true) : setShowAdminAuth(true)} title="Top Secret Area (Double Click or Ctrl+Shift+A)">
+        <div className="absolute top-0 left-0 w-20 h-20 z-50 cursor-pointer opacity-0 hover:opacity-100 hover:bg-red-500/20 transition-all duration-300 rounded-br-3xl flex items-start justify-start p-2" onDoubleClick={() => navigate('/admin')} title="Top Secret Area (Double Click or Ctrl+Shift+A)">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         </div>
         <div className="p-4">
@@ -1797,6 +1851,13 @@ const HomePage = () => {
       </div>
 
       <div className="p-4">
+        {showNewWhisperBanner && (
+          <motion.div initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="mb-4">
+            <button onClick={refreshFeed} className="w-full py-2.5 bg-[var(--accent-primary)] text-white font-semibold rounded-xl shadow-lg hover:scale-[1.02] transition-transform">
+              New Whispers Available - Click to Refresh
+            </button>
+          </motion.div>
+        )}
         <div className="space-y-4">
           {error ? (
             <div className="text-center text-red-400 py-12 bg-red-500/10 rounded-xl border border-red-500/20">
@@ -1810,7 +1871,7 @@ const HomePage = () => {
           ) : confessions.length > 0 ? (
             <>
               {confessions.map(confession => (
-                <ConfessionCard key={confession._id} confession={confession} onDelete={handleDeleteConfession} />
+                <ConfessionCard key={confession._id} confession={confession} onDelete={handleDeleteConfession} onRefresh={refreshFeed} />
               ))}
               {hasMore && (
                 <button 
@@ -1827,155 +1888,6 @@ const HomePage = () => {
           )}
         </div>
       </div>
-
-      {/* Admin Auth Modal */}
-      <AnimatePresence>
-        {showAdminAuth && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setShowAdminAuth(false)}>
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} onClick={e => e.stopPropagation()} className="bg-[var(--bg-card)] border border-[var(--border-strong)] p-6 rounded-2xl shadow-2xl w-full max-w-sm">
-              <h2 className="text-xl font-display text-[var(--accent-primary)] mb-4 text-center">Admin Override</h2>
-              {adminError && <p className="text-red-500 text-sm mb-4 text-center">{adminError}</p>}
-              <form onSubmit={handleAdminAuthSubmit} className="flex flex-col gap-4">
-                <input type="password" placeholder="Passcode" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="input-field text-center tracking-[0.5em]" autoFocus required />
-                <button type="submit" className="btn-primary">Access Controls</button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Admin Control Panel */}
-      <AnimatePresence>
-        {showAdminPanel && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setShowAdminPanel(false)}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} onClick={e => e.stopPropagation()} className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
-              <div className="p-4 border-b border-[var(--border-strong)] flex justify-between items-center bg-[var(--bg-card)]">
-                <h2 className="text-xl font-display text-[var(--accent-primary)] font-bold flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Echo Admin Matrix</h2>
-                <div className="flex gap-2">
-                  <button onClick={() => setAdminTab('dashboard')} className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${adminTab === 'dashboard' ? 'bg-[var(--accent-primary)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}>Dashboard</button>
-                  <button onClick={() => setAdminTab('users')} className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${adminTab === 'users' ? 'bg-[var(--accent-primary)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}>Users Matrix</button>
-                  <button onClick={() => setAdminTab('moderation')} className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${adminTab === 'moderation' ? 'bg-[var(--accent-primary)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}>Moderation</button>
-                  <button onClick={() => setAdminTab('system')} className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${adminTab === 'system' ? 'bg-[var(--accent-primary)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}>System</button>
-                </div>
-                <button onClick={() => setShowAdminPanel(false)} className="text-[var(--text-muted)] hover:text-white p-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-              </div>
-              <div className="p-6 overflow-y-auto flex-1 hide-scrollbar">
-                
-                {adminTab === 'dashboard' && (
-                  <>
-                  {adminData.stats && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    <div className="bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-light)] text-center"><p className="text-2xl font-bold text-[var(--accent-primary)]">{adminData.stats.totalUsers}</p><p className="text-xs text-[var(--text-muted)] uppercase">Total Users</p></div>
-                    <div className="bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-light)] text-center"><p className="text-2xl font-bold text-[var(--accent-primary)]">{adminData.stats.totalConfessions}</p><p className="text-xs text-[var(--text-muted)] uppercase">Whispers</p></div>
-                    <div className="bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-light)] text-center"><p className="text-2xl font-bold text-[var(--accent-primary)]">{adminData.stats.totalVoiceConfessions}</p><p className="text-xs text-[var(--text-muted)] uppercase">Voice Uploads</p></div>
-                    <div className="bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-light)] text-center"><p className="text-2xl font-bold text-[var(--accent-primary)]">{adminData.stats.activeToday}</p><p className="text-xs text-[var(--text-muted)] uppercase">Active Today</p></div>
-                  </div>
-                )}
-                  <p className="text-sm text-[var(--text-muted)] text-center mt-6 p-4 bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl">Since you are currently Admin, the "Delete" icon (trash can) is now visible on all whispers in the main feed. You can freely moderate content directly from the timeline.</p>
-                  </>
-                )}
-
-                {adminTab === 'users' && (
-                  <>
-                <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">User Master Controls (Latest 200)</h3>
-                <div className="bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left text-[var(--text-secondary)]">
-                      <thead className="text-xs text-[var(--text-muted)] uppercase bg-[var(--bg-hover)] border-b border-[var(--border-light)]">
-                        <tr><th className="px-4 py-3">Identity</th><th className="px-4 py-3">Real Username</th><th className="px-4 py-3">Level</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Action</th></tr>
-                      </thead>
-                      <tbody>
-                        {adminData.users.map(u => (
-                          <tr key={u._id} className="border-b border-[var(--border-light)] hover:bg-[var(--bg-hover)]">
-                            <td className="px-4 py-3 font-semibold text-[var(--text-primary)]">{u.anonymousName}</td>
-                            <td className="px-4 py-3">{u.username}</td>
-                            <td className="px-4 py-3">Lvl {u.level}</td>
-                            <td className="px-4 py-3">{u.isBanned ? <span className="text-red-500 font-bold">BANNED</span> : <span className="text-green-500">Active</span>}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex gap-1 flex-wrap max-w-[250px]">
-                                <button onClick={() => toggleUserBan(u._id)} className={`px-2 py-1 rounded text-[10px] font-bold text-white ${u.isBanned ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}>{u.isBanned ? 'Unban' : 'Ban'}</button>
-                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/mute`, 'PATCH')} className={`px-2 py-1 rounded text-[10px] font-bold text-white ${u.isMuted ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600'}`}>{u.isMuted ? 'Unmute' : 'Mute'}</button>
-                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/shadowban`, 'PATCH')} className={`px-2 py-1 rounded text-[10px] font-bold text-white ${u.isShadowbanned ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-800 hover:bg-gray-900'}`}>{u.isShadowbanned ? 'Unshadow' : 'Shadowban'}</button>
-                                <button onClick={() => { if(window.confirm('Delete user completely?')) executeAdminAction(`/api/admin/users/${u._id}`, 'DELETE'); }} className="px-2 py-1 rounded bg-red-800 text-white text-[10px] hover:bg-red-900" title="Hard Delete User">Del</button>
-                                <button onClick={() => { if(window.confirm('Wipe all their whispers?')) executeAdminAction(`/api/admin/users/${u._id}/whispers`, 'DELETE'); }} className="px-2 py-1 rounded bg-orange-600 text-white text-[10px] hover:bg-orange-700" title="Wipe History">Wipe</button>
-                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/xp`)} className="px-2 py-1 rounded bg-blue-500 text-white text-[10px] hover:bg-blue-600" title="Grant +1000 XP">+XP</button>
-                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/reset-xp`, 'PATCH')} className="px-2 py-1 rounded bg-blue-800 text-white text-[10px] hover:bg-blue-900" title="Reset XP to 0">Rst XP</button>
-                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/badge`)} className="px-2 py-1 rounded bg-purple-500 text-white text-[10px] hover:bg-purple-600" title="Grant VIP Badge">VIP</button>
-                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/clear-badges`, 'PATCH')} className="px-2 py-1 rounded bg-purple-800 text-white text-[10px] hover:bg-purple-900" title="Clear All Badges">Clr Bdg</button>
-                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/reroll`)} className="px-2 py-1 rounded bg-gray-600 text-white text-[10px] hover:bg-gray-700" title="Force New Identity">Reroll</button>
-                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/avatar`, 'PATCH')} className="px-2 py-1 rounded bg-teal-600 text-white text-[10px] hover:bg-teal-700" title="Clear Avatar">Clr Avt</button>
-                                <button onClick={() => { const msg = window.prompt('System DM to user:'); if (msg) executeAdminAction(`/api/admin/users/${u._id}/dm`, 'POST', { message: msg }); }} className="px-2 py-1 rounded bg-indigo-500 text-white text-[10px] hover:bg-indigo-600" title="Send System DM">DM</button>
-                                <button onClick={() => { const r = window.prompt('Enter tier (COMMON, UNCOMMON, RARE, EXCLUSIVE, LEGENDARY, MYTHIC):'); if (r) executeAdminAction(`/api/admin/users/${u._id}/rarity`, 'PATCH', { rarity: r.toUpperCase() }); }} className="px-2 py-1 rounded bg-pink-600 text-white text-[10px] hover:bg-pink-700" title="Set Rarity">Rarity</button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                  </>
-                )}
-
-                {adminTab === 'moderation' && (
-                  <>
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-[var(--text-primary)]">AI-Flagged Whispers</h3>
-                    <button onClick={() => { if(window.confirm('Nuke ALL flagged content?')) executeAdminAction('/api/admin/whispers/flagged', 'DELETE'); }} className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg hover:bg-red-600">Nuke All Flagged</button>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    {adminData.flagged.length > 0 ? adminData.flagged.map(f => (
-                      <div key={f._id} className="bg-[var(--bg-card)] p-4 border border-red-500/30 rounded-xl flex justify-between items-start gap-4">
-                        <div>
-                          <p className="text-xs text-[var(--text-muted)] mb-1">{f.authorName} • {new Date(f.createdAt).toLocaleString()}</p>
-                          <p className="text-sm text-[var(--text-primary)]">{f.content || `[${f.type} whisper]`}</p>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <button onClick={() => { executeAdminAction(`/api/confessions/${f._id}`, 'DELETE'); }} className="bg-red-500/20 text-red-500 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-500 hover:text-white">Delete</button>
-                          <button onClick={() => { executeAdminAction(`/api/admin/whispers/${f._id}/approve`, 'PATCH'); }} className="bg-green-500/20 text-green-500 px-3 py-1 rounded-full text-xs font-bold hover:bg-green-500 hover:text-white">Approve</button>
-                          <button onClick={() => { executeAdminAction(`/api/admin/whispers/${f._id}/boost`, 'PATCH'); }} className="bg-yellow-500/20 text-yellow-500 px-3 py-1 rounded-full text-xs font-bold hover:bg-yellow-500 hover:text-white">Boost</button>
-                        </div>
-                      </div>
-                    )) : <p className="text-[var(--text-muted)] italic">No flagged content currently.</p>}
-                  </div>
-                  </>
-                )}
-
-                {adminTab === 'system' && adminData.system && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
-                      <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4 border-b border-[var(--border-strong)] pb-2">Broadcast System</h3>
-                      <textarea value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)} placeholder="Type a global message to send to all online users..." className="w-full bg-[var(--bg-hover)] border border-[var(--border-strong)] rounded-lg p-3 text-sm text-white mb-3" rows="3"></textarea>
-                      <button onClick={() => { executeAdminAction('/api/admin/broadcast', 'POST', { message: broadcastMsg }); setBroadcastMsg(''); alert('Broadcast Sent!'); }} className="bg-blue-500 w-full text-white py-2 rounded-lg font-bold">Send Global Alert</button>
-                    </div>
-                    
-                    <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
-                      <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4 border-b border-[var(--border-strong)] pb-2">System Controls</h3>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[var(--text-secondary)] font-medium">Maintenance Mode</span>
-                          <button onClick={() => { executeAdminAction('/api/admin/maintenance'); }} className={`px-4 py-2 rounded-lg font-bold text-white transition-colors ${adminData.system.maintenanceMode ? 'bg-red-500' : 'bg-gray-600'}`}>{adminData.system.maintenanceMode ? 'ACTIVE (Lockdown)' : 'Disabled'}</button>
-                        </div>
-                        <div className="bg-[var(--bg-secondary)] p-3 rounded-lg border border-[var(--border-strong)] text-xs text-green-400 font-mono space-y-1">
-                          <p>Active Sockets: {adminData.system.activeSockets}</p>
-                          <p>Uptime: {adminData.system.uptime}</p>
-                          <p>RAM (RSS): {adminData.system.memory.rss}</p>
-                          <p>Heap Used: {adminData.system.memory.heapUsed}</p>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center mt-4">
-                        <span className="text-[var(--text-secondary)] font-medium text-sm">Purge Old Whispers ({'>'}30 Days)</span>
-                        <button onClick={() => { if(window.confirm('Delete all whispers older than 30 days?')) executeAdminAction('/api/admin/whispers/old', 'DELETE'); }} className="px-4 py-2 rounded-lg font-bold text-white transition-colors bg-red-600 hover:bg-red-700 text-xs">Run Purge</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
@@ -3262,6 +3174,209 @@ const ProfilePage = () => {
 };
 
 // =============================================================================
+// ADMIN PANEL - NEW DEDICATED PAGE
+// =============================================================================
+const AdminProtectedRoute = ({ children }) => {
+  const { user, loading, updateUser } = useAuth();
+  const navigate = useNavigate();
+  const [showAdminAuth, setShowAdminAuth] = useState(!user?.isAdmin);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminError, setAdminError] = useState('');
+
+  const handleAdminAuthSubmit = async (e) => {
+    e.preventDefault();
+    setAdminError('');
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}/api/admin/promote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ password: adminPassword })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        updateUser({ isAdmin: true });
+        setShowAdminAuth(false);
+      } else {
+        setAdminError(data.error || 'Invalid password');
+      }
+    } catch (err) {
+      setAdminError('Connection error');
+    }
+  };
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-transparent"><div className="text-[var(--accent-primary)]">Loading...</div></div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!user.isAdmin) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => navigate('/')}>
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} onClick={e => e.stopPropagation()} className="bg-[var(--bg-card)] border border-[var(--border-strong)] p-6 rounded-2xl shadow-2xl w-full max-w-sm">
+          <h2 className="text-xl font-display text-[var(--accent-primary)] mb-4 text-center">Admin Override Required</h2>
+          <p className="text-sm text-center text-[var(--text-muted)] mb-4">You must be an admin to access this page. Please enter the passcode.</p>
+          {adminError && <p className="text-red-500 text-sm mb-4 text-center">{adminError}</p>}
+          <form onSubmit={handleAdminAuthSubmit} className="flex flex-col gap-4">
+            <input type="password" placeholder="Passcode" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="input-field text-center tracking-[0.5em]" autoFocus required />
+            <button type="submit" className="btn-primary">Access Controls</button>
+          </form>
+        </motion.div>
+      </div>
+    );
+  }
+
+  return children;
+};
+
+const AdminPage = () => {
+  const location = useLocation();
+  const adminNav = [
+    { path: '/admin/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
+    { path: '/admin/users', label: 'Users', icon: 'users' },
+    { path: '/admin/content', label: 'Content', icon: 'file-text' },
+    { path: '/admin/system', label: 'System', icon: 'sliders-horizontal' },
+    { path: '/admin/logs', label: 'Logs', icon: 'history' },
+  ];
+
+  return (
+    <div className="flex h-screen bg-[var(--bg-secondary)] text-[var(--text-primary)]">
+      <aside className="w-64 bg-[var(--bg-card)] border-r border-[var(--border-light)] p-4 flex flex-col">
+        <div className="flex items-center gap-3 p-4 mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <h1 className="text-lg font-bold font-display">Admin Matrix</h1>
+        </div>
+        <nav className="flex-1 space-y-2">
+          {adminNav.map(item => (
+            <Link key={item.path} to={item.path} className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${location.pathname.startsWith(item.path) ? 'bg-[var(--accent-primary)] text-white' : 'hover:bg-[var(--bg-hover)]'}`}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {item.icon === 'layout-dashboard' && <><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></>}
+                {item.icon === 'users' && <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>}
+                {item.icon === 'file-text' && <><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></>}
+                {item.icon === 'sliders-horizontal' && <><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" y1="2" x2="14" y2="6"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="16" y1="18" x2="16" y2="22"/></>}
+                {item.icon === 'history' && <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></>}
+              </svg>
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+        <div className="mt-4 pt-4 border-t border-[var(--border-light)]">
+          <Link to="/" className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-[var(--bg-hover)]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Exit to Main Site
+          </Link>
+        </div>
+      </aside>
+      <main className="flex-1 overflow-y-auto p-8">
+        <Routes>
+          <Route path="dashboard" element={<AdminDashboard />} />
+          <Route path="users" element={<AdminUserList />} />
+          <Route path="users/:userId" element={<AdminUserDetail />} />
+          {/* Add routes for Content, System, Logs here */}
+          <Route index element={<Navigate to="dashboard" replace />} />
+        </Routes>
+      </main>
+    </div>
+  );
+};
+
+const AdminDashboard = () => {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('morpheus_token');
+    fetch(`${SOCKET_URL}/api/admin/dashboard-stats`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => {
+        setStats(data);
+        setLoading(false);
+      })
+      .catch(err => setLoading(false));
+  }, []);
+
+  if (loading) return <div>Loading dashboard...</div>;
+  if (!stats) return <div>Failed to load dashboard data.</div>;
+
+  const StatCard = ({ title, value, change, period }) => (
+    <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+      <p className="text-sm text-[var(--text-muted)]">{title}</p>
+      <p className="text-3xl font-bold mt-1">{value.toLocaleString()}</p>
+      {change !== undefined && (
+        <p className={`text-sm mt-2 font-semibold ${change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+          {change >= 0 ? '+' : ''}{change.toLocaleString()} in last {period}
+        </p>
+      )}
+    </div>
+  );
+
+  const LineChart = ({ data, label, color = 'var(--accent-primary)' }) => {
+    if (!data || data.length === 0) return <div className="text-center text-sm text-[var(--text-muted)]">No data available</div>;
+    const width = 500; const height = 200; const padding = 40;
+    const maxX = data.length - 1; const maxY = Math.max(...data.map(d => d.count), 0);
+    const getX = (index) => padding + (index / maxX) * (width - padding * 2);
+    const getY = (value) => height - padding - (value / maxY) * (height - padding * 2);
+    const path = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(d.count)}`).join(' ');
+    return (
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+        {[0, 0.5, 1].map(tick => (
+          <g key={tick}><text x={padding - 10} y={getY(maxY * tick)} textAnchor="end" dy="0.3em" fontSize="10" fill="var(--text-muted)">{Math.round(maxY * tick)}</text><line x1={padding} x2={width - padding} y1={getY(maxY * tick)} y2={getY(maxY * tick)} stroke="var(--border-light)" strokeWidth="0.5" strokeDasharray="2,2" /></g>
+        ))}
+        {data.map((d, i) => (i % Math.ceil(data.length / 7) === 0 && (<text key={i} x={getX(i)} y={height - padding + 15} textAnchor="middle" fontSize="10" fill="var(--text-muted)">{new Date(d._id).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</text>)))}
+        <path d={path} fill="none" stroke={color} strokeWidth="2" />
+        <path d={`${path} L ${getX(maxX)} ${height - padding} L ${getX(0)} ${height - padding} Z`} fill={`url(#gradient-${label})`} />
+        <defs><linearGradient id={`gradient-${label}`} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.3" /><stop offset="100%" stopColor={color} stopOpacity="0" /></linearGradient></defs>
+      </svg>
+    );
+  };
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard title="Total Users" value={stats.coreStats.totalUsers} change={stats.growth.users.d24h} period="24h" />
+        <StatCard title="Total Whispers" value={stats.coreStats.totalConfessions} change={stats.growth.whispers.d24h} period="24h" />
+        <StatCard title="Active Today" value={stats.coreStats.activeToday} />
+        <StatCard title="Projected Revenue" value={`$${stats.financials.projectedRevenue.toFixed(2)}`} />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+          <h2 className="font-semibold mb-4">New User Growth (Last 30 Days)</h2>
+          <LineChart data={stats.charts.userGrowth} label="user-growth" />
+        </div>
+        <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+          <h2 className="font-semibold mb-4">Content by Category</h2>
+          <div className="space-y-3">
+            {stats.content.categoryDistribution.map(cat => (
+              <div key={cat._id}>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="font-medium text-[var(--text-secondary)]">{CATEGORIES.find(c => c.id === cat._id)?.name || cat._id}</span>
+                  <span className="text-[var(--text-muted)]">{cat.count}</span>
+                </div>
+                <div className="w-full bg-[var(--bg-hover)] rounded-full h-2"><div className="bg-[var(--accent-primary)] h-2 rounded-full" style={{ width: `${(cat.count / stats.coreStats.totalConfessions) * 100}%` }}></div></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AdminUserList = () => {
+  // Placeholder for user list UI
+  return <div>User Management Page</div>;
+};
+
+const AdminUserDetail = () => {
+  // Placeholder for user detail/edit UI
+  return <div>User Detail Page</div>;
+};
+
+// =============================================================================
 // MAIN APP LAYOUT
 // =============================================================================
 const AppLayout = ({ children }) => {
@@ -3283,7 +3398,7 @@ const AppLayout = ({ children }) => {
           </motion.div>
         </AnimatePresence>
       </main>
-      <BottomNav />
+      {location.pathname.startsWith('/admin') ? null : <BottomNav />}
     </div>
   );
 };
@@ -3309,6 +3424,7 @@ const App = () => {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/reveal" element={<IdentityRevealPage />} />
             <Route path="/" element={<ProtectedRoute><AppLayout><HomePage /></AppLayout></ProtectedRoute>} />
+            <Route path="/admin/*" element={<AdminProtectedRoute><AdminPage /></AdminProtectedRoute>} />
             <Route path="/create" element={<ProtectedRoute><AppLayout><CreatePage /></AppLayout></ProtectedRoute>} />
             <Route path="/radio" element={<ProtectedRoute><AppLayout><RadioPage /></AppLayout></ProtectedRoute>} />
             <Route path="/messages" element={<ProtectedRoute><AppLayout><MessagesPage /></AppLayout></ProtectedRoute>} />

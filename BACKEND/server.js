@@ -357,6 +357,13 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('join_confession', (confessionId) => {
+    socket.join(`confession_${confessionId}`);
+  });
+  socket.on('leave_confession', (confessionId) => {
+    socket.leave(`confession_${confessionId}`);
+  });
+
   socket.on('typing_start', (data) => {
     if (data.to && data.from) {
       socket.to(`user_${data.to}`).emit('typing_start', { fromId: data.from });
@@ -380,7 +387,7 @@ io.on('connection', (socket) => {
 
 // User Schema
 const userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true },
+  username: { type: String, required: true, unique: true, index: true },
   password: { type: String, required: true },
   anonymousName: { type: String, required: true, unique: true },
   rarity: { type: String, enum: ['COMMON', 'UNCOMMON', 'RARE', 'EXCLUSIVE', 'LEGENDARY', 'MYTHIC'], default: 'COMMON' },
@@ -409,7 +416,7 @@ const User = mongoose.model('User', userSchema);
 
 // Confession Schema
 const confessionSchema = new mongoose.Schema({
-  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   authorName: { type: String, required: true },
   type: { type: String, enum: ['text', 'voice'], required: true },
   content: { type: String },
@@ -422,7 +429,7 @@ const confessionSchema = new mongoose.Schema({
   },
   voiceEffect: { type: String, enum: ['normal', 'whisper', 'deep', 'echo', 'robotic'], default: 'normal' },
   ambientSound: { type: String },
-  categories: [{ type: String }],
+  categories: [{ type: String, index: true }],
   mood: { type: String },
   emotion: { type: String, enum: ['sad', 'angry', 'love', 'funny', 'anxious', 'grateful', 'neutral'] },
   reactions: {
@@ -440,12 +447,13 @@ const confessionSchema = new mongoose.Schema({
   chainChildren: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Confession' }],
   isPartOfSeries: { type: Boolean, default: false },
   seriesNumber: { type: Number },
-  expiryDate: { type: Date },
+  expiryDate: { type: Date, index: true },
   isExpired: { type: Boolean, default: false },
-  isHidden: { type: Boolean, default: false },
-  isFlagged: { type: Boolean, default: false },
-  heatScore: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now }
+  isHidden: { type: Boolean, default: false, index: true },
+  isFlagged: { type: Boolean, default: false, index: true },
+  heatScore: { type: Number, default: 0, index: true },
+  reportedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  createdAt: { type: Date, default: Date.now, index: true }
 });
 
 const Confession = mongoose.model('Confession', confessionSchema);
@@ -463,6 +471,8 @@ const commentSchema = new mongoose.Schema({
     sendingLove: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     wow: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
   },
+  reportedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  isFlagged: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -476,6 +486,8 @@ const messageSchema = new mongoose.Schema({
   read: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
+// Index for efficient querying of conversations
+messageSchema.index({ sender: 1, recipient: 1, createdAt: -1 });
 
 const Message = mongoose.model('Message', messageSchema);
 
@@ -488,6 +500,7 @@ const notificationSchema = new mongoose.Schema({
   read: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
+notificationSchema.index({ recipient: 1, read: 1 });
 
 const Notification = mongoose.model('Notification', notificationSchema);
 
@@ -877,25 +890,24 @@ app.post('/api/auth/login', async (req, res) => {
     const today = new Date();
     lastActiveDate.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
-    
     const diffDays = Math.round((today - lastActiveDate) / (1000 * 60 * 60 * 24));
     
+    let updatedStreak = user.streak;
     if (diffDays === 1) {
-      user.streak += 1;
+      updatedStreak += 1;
       await awardXP(user._id, XP_REWARDS.DAILY_ACTIVITY, 'DAILY_ACTIVITY');
-      if (user.streak === 7) await awardXP(user._id, XP_REWARDS.STREAK_7, 'STREAK_7');
-      if (user.streak === 30) await awardXP(user._id, XP_REWARDS.STREAK_30, 'STREAK_30');
+      if (updatedStreak === 7) await awardXP(user._id, XP_REWARDS.STREAK_7, 'STREAK_7');
+      if (updatedStreak === 30) await awardXP(user._id, XP_REWARDS.STREAK_30, 'STREAK_30');
     } else if (diffDays > 1) {
-      user.streak = 1;
+      updatedStreak = 1;
       await awardXP(user._id, XP_REWARDS.DAILY_ACTIVITY, 'DAILY_ACTIVITY');
     } else if (diffDays === 0 && !user.lastActive) {
-      user.streak = 1;
+      updatedStreak = 1;
       await awardXP(user._id, XP_REWARDS.DAILY_ACTIVITY, 'DAILY_ACTIVITY');
     }
 
-    // Update last active
-    user.lastActive = new Date();
-    await user.save();
+    // Optimized: Update streak and lastActive in a single operation
+    const updatedUser = await User.findByIdAndUpdate(user._id, { streak: updatedStreak, lastActive: new Date() }, { new: true });
     
     const token = jwt.sign(
       { userId: user._id, username: user.username },
@@ -912,10 +924,10 @@ app.post('/api/auth/login', async (req, res) => {
         rarity: user.rarity,
         avatarUrl: user.avatarUrl,
         gender: user.gender,
-        xp: user.xp,
-        level: user.level,
-        title: user.title,
-        streak: user.streak,
+        xp: updatedUser.xp,
+        level: updatedUser.level,
+        title: updatedUser.title,
+        streak: updatedUser.streak,
         badges: user.badges,
         isAdmin: user.isAdmin,
         totalConfessions: user.totalConfessions,
@@ -988,14 +1000,19 @@ app.get('/api/feed', authenticate, async (req, res) => {
     // Prevent crashing the feed if a user account was deleted
     confessions = confessions.filter(c => c.author != null);
     
-    // Update heat scores
+    // Optimized: Update heat scores in bulk to prevent N+1 query issue
+    const bulkOps = [];
     for (const confession of confessions) {
       const newHeatScore = calculateHeatScore(confession);
-      // Only write to DB if the score changed significantly (>5) to prevent massive write loads
       if (Math.abs(newHeatScore - (confession.heatScore || 0)) > 5) {
-        await Confession.findByIdAndUpdate(confession._id, { heatScore: newHeatScore });
+        bulkOps.push({
+          updateOne: { filter: { _id: confession._id }, update: { $set: { heatScore: newHeatScore } } }
+        });
         confession.heatScore = newHeatScore;
       }
+    }
+    if (bulkOps.length > 0) {
+      await Confession.bulkWrite(bulkOps);
     }
     
     const total = await Confession.countDocuments(query);
@@ -1089,6 +1106,12 @@ app.post('/api/confessions', authenticate, async (req, res) => {
     
     await confession.save();
     
+    // Real-time: Notify clients of a new whisper
+    io.emit('new_whisper_in_feed', { category: confession.categories[0] });
+    if (moderation.flagged) {
+      io.to('admin_room').emit('admin_new_flagged_content', { _id: confession._id, content: content || '[Voice Whisper]', authorName: req.user.anonymousName });
+    }
+
     // Link the child to the parent's record
     if (chainParent) {
       await Confession.findByIdAndUpdate(chainParent, { $push: { chainChildren: confession._id } });
@@ -1099,6 +1122,11 @@ app.post('/api/confessions', authenticate, async (req, res) => {
     
     // Update user stats
     await User.findByIdAndUpdate(req.user._id, { $inc: { totalConfessions: 1 } });
+
+    // Real-time: Notify admins of new user signup
+    if (user.totalConfessions === 0) { // First post
+      io.to('admin_room').emit('admin_new_user', { _id: user._id, username: user.username, anonymousName: user.anonymousName });
+    }
     
     // Notify followers asynchronously to prevent blocking the API response
     setImmediate(async () => {
@@ -1264,6 +1292,9 @@ app.post('/api/confessions/:id/react', authenticate, async (req, res) => {
     
     const updatedConfession = await Confession.findById(req.params.id);
     
+    // Real-time: Broadcast reaction updates to clients viewing this confession
+    io.to(`confession_${req.params.id}`).emit('reaction_update', { confessionId: req.params.id, reactions: updatedConfession.reactions });
+
     res.json({
       message: `Reaction ${action}`,
       action,
@@ -1364,6 +1395,12 @@ app.post('/api/confessions/:id/comments', authenticate, async (req, res) => {
     
     await comment.save();
     
+    // Real-time: Populate author details for the socket payload
+    const populatedComment = await Comment.findById(comment._id).populate('author', 'anonymousName rarity avatarUrl');
+
+    // Real-time: Broadcast the new comment to clients viewing this confession
+    io.to(`confession_${req.params.id}`).emit('new_comment', populatedComment);
+
     // Update confession comment count
     confession.comments.push(comment._id);
     confession.commentCount += 1;
@@ -1394,16 +1431,61 @@ app.post('/api/confessions/:id/comments', authenticate, async (req, res) => {
     
     res.status(201).json({
       message: 'Comment added',
-      comment: {
-        id: comment._id,
-        content: comment.content,
-        authorName: comment.authorName,
-        createdAt: comment.createdAt
-      }
+      comment: populatedComment
     });
   } catch (error) {
     console.error('Add comment error:', error);
     res.status(500).json({ error: 'Failed to add comment' });
+  }
+});
+
+// =============================================================================
+// REPORT ROUTES
+// =============================================================================
+
+// Report Confession
+app.post('/api/confessions/:id/report', authenticate, async (req, res) => {
+  try {
+    const confession = await Confession.findById(req.params.id);
+    if (!confession) return res.status(404).json({ error: 'Confession not found' });
+    
+    if (confession.reportedBy.some(id => id.toString() === req.user._id.toString())) {
+      return res.status(400).json({ error: 'You have already reported this whisper' });
+    }
+    
+    confession.reportedBy.push(req.user._id);
+    // Auto-flag if reported by 3 different users
+    if (confession.reportedBy.length >= 3) {
+      confession.isFlagged = true;
+      io.to('admin_room').emit('admin_new_flagged_content', { _id: confession._id, content: confession.content || '[Voice Whisper]', authorName: confession.authorName });
+    }
+    
+    await confession.save();
+    res.json({ success: true, message: 'Report submitted' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to process report' });
+  }
+});
+
+// Report Comment
+app.post('/api/comments/:id/report', authenticate, async (req, res) => {
+  try {
+    const comment = await Comment.findById(req.params.id);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+    
+    if (comment.reportedBy.some(id => id.toString() === req.user._id.toString())) {
+      return res.status(400).json({ error: 'You have already reported this comment' });
+    }
+    
+    comment.reportedBy.push(req.user._id);
+    if (comment.reportedBy.length >= 3) {
+      comment.isFlagged = true;
+    }
+    
+    await comment.save();
+    res.json({ success: true, message: 'Report submitted' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to process report' });
   }
 });
 
@@ -1609,32 +1691,41 @@ app.post('/api/users/:id/follow', authenticate, async (req, res) => {
 
 // Get Conversations
 app.get('/api/messages', authenticate, async (req, res) => {
-  try {
-    // Fix: Aggregation pipeline perfectly groups conversations preventing heavy chats from hiding older threads
-    const conversationsRaw = await Message.aggregate([
+  try {    // Optimized: Aggregation pipeline with $lookup is more efficient than a separate populate call
+    const conversations = await Message.aggregate([
       { $match: { $or: [{ sender: req.user._id }, { recipient: req.user._id }] } },
       { $sort: { createdAt: -1 } },
       { $group: {
           _id: { $cond: [{ $eq: ["$sender", req.user._id] }, "$recipient", "$sender"] },
           lastMessage: { $first: "$$ROOT" },
-          unread: { 
-            $sum: { $cond: [{ $and: [{ $eq: ["$recipient", req.user._id] }, { $eq: ["$read", false] }] }, 1, 0] } 
-          }
+          unread: { $sum: { $cond: [{ $and: [{ $eq: ["$recipient", req.user._id] }, { $eq: ["$read", false] }] }, 1, 0] } }
         }
       },
-      { $limit: 100 }
+      { $sort: { "lastMessage.createdAt": -1 } },
+      { $limit: 100 },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'partner'
+        }
+      },
+      { $unwind: '$partner' },
+      {
+        $project: {
+          _id: 0,
+          lastMessage: 1,
+          unread: 1,
+          partner: {
+            _id: '$partner._id',
+            anonymousName: '$partner.anonymousName',
+            rarity: '$partner.rarity',
+            avatarUrl: '$partner.avatarUrl'
+          }
+        }
+      }
     ]);
-
-    await User.populate(conversationsRaw, { path: '_id', select: 'anonymousName rarity avatarUrl' });
-
-    const conversations = conversationsRaw
-      .filter(conv => conv._id != null)
-      .map(conv => ({
-        partner: conv._id,
-        lastMessage: conv.lastMessage,
-        unread: conv.unread
-      }))
-      .sort((a, b) => new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt));
 
     res.json(conversations);
   } catch (error) {
@@ -2130,6 +2221,85 @@ app.patch('/api/admin/users/:id/clear-badges', authenticate, async (req, res) =>
     await User.findByIdAndUpdate(req.params.id, { badges: [] });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// =============================================================================
+// NEW DEDICATED ADMIN PANEL ENDPOINTS
+// =============================================================================
+
+// Dashboard Stats
+app.get('/api/admin/dashboard-stats', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+
+    const now = new Date();
+    const d24h = new Date(now - 24 * 60 * 60 * 1000);
+    const d7 = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    const d30 = new Date(now - 30 * 24 * 60 * 60 * 1000);
+
+    const [
+      coreStats,
+      newUsers24h, newUsers7d, newUsers30d,
+      newWhispers24h, newWhispers7d, newWhispers30d,
+      categoryDistribution,
+      userGrowth,
+      recentFlagged
+    ] = await Promise.all([
+      // Core Stats
+      (async () => {
+        const [totalUsers, totalConfessions, activeToday] = await Promise.all([
+          User.countDocuments(),
+          Confession.countDocuments(),
+          User.countDocuments({ lastActive: { $gte: d24h } })
+        ]);
+        return { totalUsers, totalConfessions, activeToday };
+      })(),
+      // New Users
+      User.countDocuments({ createdAt: { $gte: d24h } }),
+      User.countDocuments({ createdAt: { $gte: d7 } }),
+      User.countDocuments({ createdAt: { $gte: d30 } }),
+      // New Whispers
+      Confession.countDocuments({ createdAt: { $gte: d24h } }),
+      Confession.countDocuments({ createdAt: { $gte: d7 } }),
+      Confession.countDocuments({ createdAt: { $gte: d30 } }),
+      // Category Distribution
+      Confession.aggregate([
+        { $unwind: '$categories' },
+        { $group: { _id: '$categories', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]),
+      // User Growth (last 30 days)
+      User.aggregate([
+        { $match: { createdAt: { $gte: d30 } } },
+        { $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]),
+      // Recently Flagged
+      Confession.find({ isFlagged: true }).sort({ createdAt: -1 }).limit(5).select('content authorName')
+    ]);
+
+    // Mock Financials
+    const financials = {
+      projectedRevenue: coreStats.totalUsers * 1.25, // Mock calculation
+      serverCosts: 150.75, // Mock static cost
+      net: (coreStats.totalUsers * 1.25) - 150.75
+    };
+
+    res.json({
+      coreStats,
+      growth: { users: { d24h: newUsers24h, d7: newUsers7d, d30: newUsers30d }, whispers: { d24h: newWhispers24h, d7: newWhispers7d, d30: newWhispers30d } },
+      content: { categoryDistribution, recentFlagged },
+      charts: { userGrowth },
+      financials
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch dashboard stats' });
+  }
 });
 
 // =============================================================================
