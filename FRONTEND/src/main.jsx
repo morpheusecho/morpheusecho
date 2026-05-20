@@ -31,6 +31,26 @@ if (!rootElement) {
     document.body.style.backgroundColor = '#fcfcfd';
   }
 
+  // Register Service Worker for PWA (Faster Loads & Auto-updates)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').then((registration) => {
+        console.log('ServiceWorker registered with scope:', registration.scope);
+        
+        // Listen for new code pushed to the server (GitHub/Deployment updates)
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New update found - forcefully reload the page to apply the latest frontend code
+              window.location.reload();
+            }
+          });
+        });
+      }).catch(err => console.error('ServiceWorker registration failed:', err));
+    });
+  }
+
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <BrowserRouter>
