@@ -996,7 +996,7 @@ const ConfessionCard = ({ confession, onDelete }) => {
       </div>
 
       <div 
-        className="blur-reveal-container relative cursor-pointer"
+        className={`blur-reveal-container relative cursor-pointer ${!isRevealed ? 'select-none [-webkit-touch-callout:none]' : ''}`}
         onMouseDown={handleHoldStart}
         onMouseUp={handleHoldEnd}
         onMouseLeave={handleHoldEnd}
@@ -1563,7 +1563,7 @@ const IdentityRevealPage = () => {
         {!isRevealed ? (
           <>
             <h2 className="reveal-title">🔮 GUESS WHO IS THIS? 🔮</h2>
-            <div className="hold-reveal-container">
+            <div className="hold-reveal-container select-none [-webkit-touch-callout:none]">
               <div className={`w-64 h-32 ${getRarityFrameClass(user.rarity)} rounded-xl flex items-center justify-center mb-8`} style={{ filter: `blur(${20 - (holdProgress / 100) * 20}px)` }}>
                 <span className={`font-display text-xl ${getRarityTextClass(user.rarity)}`}>{user.anonymousName}</span>
               </div>
