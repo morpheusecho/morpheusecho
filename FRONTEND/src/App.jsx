@@ -452,13 +452,13 @@ const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('morpheus_token');
     localStorage.removeItem('morpheus_user');
     clearCache();
     setUser(null);
     navigate('/login');
-  };
+  }, [navigate]);
 
   const updateUser = (updates) => {
     setUser(prev => {
@@ -1801,7 +1801,7 @@ const HomePage = () => {
     };
     fetchFeed();
     return () => { isActive = false; };
-  }, [selectedCategory, sortBy, searchQuery, page]);
+  }, [selectedCategory, sortBy, searchQuery, page, logout]);
   
   const refreshFeed = useCallback(() => {
     setPage(1);
