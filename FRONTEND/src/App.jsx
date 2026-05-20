@@ -1628,7 +1628,9 @@ const HomePage = () => {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [adminError, setAdminError] = useState('');
-  const [adminData, setAdminData] = useState({ users: [], stats: null });
+  const [adminData, setAdminData] = useState({ users: [], stats: null, flagged: [], system: null });
+  const [adminTab, setAdminTab] = useState('dashboard');
+  const [broadcastMsg, setBroadcastMsg] = useState('');
 
   useEffect(() => {
     setPage(1);
@@ -1715,14 +1717,27 @@ const HomePage = () => {
 
   const fetchAdminData = async () => {
     const token = localStorage.getItem('morpheus_token');
-    const [statsRes, usersRes] = await Promise.all([
+    const headers = { 'Authorization': `Bearer ${token}` };
+    const [statsRes, usersRes, flaggedRes, sysRes] = await Promise.all([
       fetch(`${SOCKET_URL}/api/stats`),
-      fetch(`${SOCKET_URL}/api/admin/users`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${SOCKET_URL}/api/admin/users`, { headers }),
+      fetch(`${SOCKET_URL}/api/admin/whispers/flagged`, { headers }),
+      fetch(`${SOCKET_URL}/api/admin/system`, { headers })
     ]);
     setAdminData({
       stats: statsRes.ok ? await statsRes.json() : null,
-      users: usersRes.ok ? await usersRes.json() : []
+      users: usersRes.ok ? await usersRes.json() : [],
+      flagged: flaggedRes.ok ? await flaggedRes.json() : [],
+      system: sysRes.ok ? await sysRes.json() : null
     });
+  };
+
+  // Generic Admin Action Handler
+  const executeAdminAction = async (endpoint, method = 'POST', body = null) => {
+    const token = localStorage.getItem('morpheus_token');
+    const res = await fetch(`${SOCKET_URL}${endpoint}`, { method, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : null });
+    if (res.ok) fetchAdminData();
+    else alert('Admin action failed');
   };
 
   const toggleUserBan = async (userId) => {
@@ -1821,10 +1836,19 @@ const HomePage = () => {
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} onClick={e => e.stopPropagation()} className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
               <div className="p-4 border-b border-[var(--border-strong)] flex justify-between items-center bg-[var(--bg-card)]">
                 <h2 className="text-xl font-display text-[var(--accent-primary)] font-bold flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Echo Admin Matrix</h2>
+                <div className="flex gap-2">
+                  <button onClick={() => setAdminTab('dashboard')} className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${adminTab === 'dashboard' ? 'bg-[var(--accent-primary)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}>Dashboard</button>
+                  <button onClick={() => setAdminTab('users')} className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${adminTab === 'users' ? 'bg-[var(--accent-primary)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}>Users Matrix</button>
+                  <button onClick={() => setAdminTab('moderation')} className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${adminTab === 'moderation' ? 'bg-[var(--accent-primary)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}>Moderation</button>
+                  <button onClick={() => setAdminTab('system')} className={`px-3 py-1 rounded-lg text-sm font-semibold transition-all ${adminTab === 'system' ? 'bg-[var(--accent-primary)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}>System</button>
+                </div>
                 <button onClick={() => setShowAdminPanel(false)} className="text-[var(--text-muted)] hover:text-white p-1"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
               </div>
               <div className="p-6 overflow-y-auto flex-1 hide-scrollbar">
-                {adminData.stats && (
+                
+                {adminTab === 'dashboard' && (
+                  <>
+                  {adminData.stats && (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                     <div className="bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-light)] text-center"><p className="text-2xl font-bold text-[var(--accent-primary)]">{adminData.stats.totalUsers}</p><p className="text-xs text-[var(--text-muted)] uppercase">Total Users</p></div>
                     <div className="bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-light)] text-center"><p className="text-2xl font-bold text-[var(--accent-primary)]">{adminData.stats.totalConfessions}</p><p className="text-xs text-[var(--text-muted)] uppercase">Whispers</p></div>
@@ -1832,7 +1856,13 @@ const HomePage = () => {
                     <div className="bg-[var(--bg-card)] p-4 rounded-xl border border-[var(--border-light)] text-center"><p className="text-2xl font-bold text-[var(--accent-primary)]">{adminData.stats.activeToday}</p><p className="text-xs text-[var(--text-muted)] uppercase">Active Today</p></div>
                   </div>
                 )}
-                <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">User Matrix (Latest 200)</h3>
+                  <p className="text-sm text-[var(--text-muted)] text-center mt-6 p-4 bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl">Since you are currently Admin, the "Delete" icon (trash can) is now visible on all whispers in the main feed. You can freely moderate content directly from the timeline.</p>
+                  </>
+                )}
+
+                {adminTab === 'users' && (
+                  <>
+                <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">User Master Controls (Latest 200)</h3>
                 <div className="bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left text-[var(--text-secondary)]">
@@ -1847,7 +1877,14 @@ const HomePage = () => {
                             <td className="px-4 py-3">Lvl {u.level}</td>
                             <td className="px-4 py-3">{u.isBanned ? <span className="text-red-500 font-bold">BANNED</span> : <span className="text-green-500">Active</span>}</td>
                             <td className="px-4 py-3">
-                              <button onClick={() => toggleUserBan(u._id)} className={`px-3 py-1 rounded-full text-xs font-bold text-white ${u.isBanned ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}>{u.isBanned ? 'Unban' : 'Ban'}</button>
+                              <div className="flex gap-2 flex-wrap max-w-[200px]">
+                                <button onClick={() => toggleUserBan(u._id)} className={`px-2 py-1 rounded text-xs font-bold text-white ${u.isBanned ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}>{u.isBanned ? 'Unban' : 'Ban'}</button>
+                                <button onClick={() => { if(window.confirm('Delete user completely?')) executeAdminAction(`/api/admin/users/${u._id}`, 'DELETE'); }} className="px-2 py-1 rounded bg-red-800 text-white text-xs hover:bg-red-900" title="Hard Delete User">Del</button>
+                                <button onClick={() => { if(window.confirm('Wipe all their whispers?')) executeAdminAction(`/api/admin/users/${u._id}/whispers`, 'DELETE'); }} className="px-2 py-1 rounded bg-orange-600 text-white text-xs hover:bg-orange-700" title="Wipe History">Wipe</button>
+                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/xp`)} className="px-2 py-1 rounded bg-blue-500 text-white text-xs hover:bg-blue-600" title="Grant +1000 XP">+XP</button>
+                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/badge`)} className="px-2 py-1 rounded bg-purple-500 text-white text-xs hover:bg-purple-600" title="Grant VIP Badge">VIP</button>
+                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/reroll`)} className="px-2 py-1 rounded bg-gray-600 text-white text-xs hover:bg-gray-700" title="Force New Identity">Reroll</button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -1855,7 +1892,55 @@ const HomePage = () => {
                     </table>
                   </div>
                 </div>
-                <p className="text-xs text-[var(--text-muted)] text-center mt-6">Note: Since you are currently Admin, the "Delete" icon (trash can) is now visible on all whispers in the main feed. You can freely moderate content directly from the timeline.</p>
+                  </>
+                )}
+
+                {adminTab === 'moderation' && (
+                  <>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-[var(--text-primary)]">AI-Flagged Whispers</h3>
+                    <button onClick={() => { if(window.confirm('Nuke ALL flagged content?')) executeAdminAction('/api/admin/whispers/flagged', 'DELETE'); }} className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg hover:bg-red-600">Nuke All Flagged</button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    {adminData.flagged.length > 0 ? adminData.flagged.map(f => (
+                      <div key={f._id} className="bg-[var(--bg-card)] p-4 border border-red-500/30 rounded-xl flex justify-between items-start gap-4">
+                        <div>
+                          <p className="text-xs text-[var(--text-muted)] mb-1">{f.authorName} • {new Date(f.createdAt).toLocaleString()}</p>
+                          <p className="text-sm text-[var(--text-primary)]">{f.content || `[${f.type} whisper]`}</p>
+                        </div>
+                        <button onClick={() => { executeAdminAction(`/api/confessions/${f._id}`, 'DELETE'); }} className="bg-red-500/20 text-red-500 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-500 hover:text-white">Delete</button>
+                      </div>
+                    )) : <p className="text-[var(--text-muted)] italic">No flagged content currently.</p>}
+                  </div>
+                  </>
+                )}
+
+                {adminTab === 'system' && adminData.system && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+                      <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4 border-b border-[var(--border-strong)] pb-2">Broadcast System</h3>
+                      <textarea value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)} placeholder="Type a global message to send to all online users..." className="w-full bg-[var(--bg-hover)] border border-[var(--border-strong)] rounded-lg p-3 text-sm text-white mb-3" rows="3"></textarea>
+                      <button onClick={() => { executeAdminAction('/api/admin/broadcast', 'POST', { message: broadcastMsg }); setBroadcastMsg(''); alert('Broadcast Sent!'); }} className="bg-blue-500 w-full text-white py-2 rounded-lg font-bold">Send Global Alert</button>
+                    </div>
+                    
+                    <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+                      <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4 border-b border-[var(--border-strong)] pb-2">System Controls</h3>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[var(--text-secondary)] font-medium">Maintenance Mode</span>
+                          <button onClick={() => { executeAdminAction('/api/admin/maintenance'); }} className={`px-4 py-2 rounded-lg font-bold text-white transition-colors ${adminData.system.maintenanceMode ? 'bg-red-500' : 'bg-gray-600'}`}>{adminData.system.maintenanceMode ? 'ACTIVE (Lockdown)' : 'Disabled'}</button>
+                        </div>
+                        <div className="bg-[var(--bg-secondary)] p-3 rounded-lg border border-[var(--border-strong)] text-xs text-green-400 font-mono space-y-1">
+                          <p>Active Sockets: {adminData.system.activeSockets}</p>
+                          <p>Uptime: {adminData.system.uptime}</p>
+                          <p>RAM (RSS): {adminData.system.memory.rss}</p>
+                          <p>Heap Used: {adminData.system.memory.heapUsed}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
               </div>
             </motion.div>
           </div>

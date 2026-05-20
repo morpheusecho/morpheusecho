@@ -163,6 +163,11 @@ const IDENTITY_POOLS = {
     'Starfire', 'Moonshadow', 'Sunflare', 'Duskfall', 'Dawnbringer', 'Stormeye', 'Dreamlight', 'Chaosflame'
   ],
 
+// =============================================================================
+// GLOBAL RUNTIME STATES
+// =============================================================================
+let maintenanceMode = false;
+
   // EXCLUSIVE TIER (3%) - Rare & Mystical
   EXCLUSIVE_CREATURES: [
     'Manticore', 'Hippogriff', 'Wyvern', 'Basilisk', 'Harpy', 'Oni', 'Tengu',
@@ -501,6 +506,10 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ error: 'User not found or banned' });
     }
 
+    if (maintenanceMode && !user.isAdmin) {
+      return res.status(503).json({ error: 'System is currently under maintenance' });
+    }
+
     req.user = user;
     next();
   } catch (error) {
@@ -764,6 +773,10 @@ Confession: "${text}"`
 // Signup
 app.post('/api/auth/signup', async (req, res) => {
   try {
+    if (maintenanceMode) {
+      return res.status(503).json({ error: 'Signups disabled during maintenance' });
+    }
+
     const { username, password, gender, age, ageVerified } = req.body;
     
     if (!username || !password || !gender) {
@@ -847,6 +860,10 @@ app.post('/api/auth/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ error: 'Invalid credentials' });
+    }
+
+    if (maintenanceMode && !user.isAdmin) {
+      return res.status(503).json({ error: 'System is currently under maintenance' });
     }
     
     if (user.isBanned) {
@@ -1899,6 +1916,113 @@ app.patch('/api/admin/users/:id/ban', authenticate, async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to update ban status' });
   }
+});
+
+// =============================================================================
+// 10 NEW ADMIN FEATURES ENDPOINTS
+// =============================================================================
+
+// 1. Global Broadcast
+app.post('/api/admin/broadcast', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    io.emit('notification', { type: 'message', message: `📢 SYSTEM: ${req.body.message}` });
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: 'Broadcast failed' }); }
+});
+
+// 2. Maintenance Mode Toggle
+app.post('/api/admin/maintenance', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    maintenanceMode = !maintenanceMode;
+    if (maintenanceMode) io.emit('notification', { type: 'level', message: '⚠️ SYSTEM ENTERING MAINTENANCE MODE' });
+    res.json({ success: true, maintenanceMode });
+  } catch (error) { res.status(500).json({ error: 'Failed to toggle maintenance' }); }
+});
+
+// 3. Advanced System Diagnostics
+app.get('/api/admin/system', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const mem = process.memoryUsage();
+    res.json({
+      maintenanceMode,
+      activeSockets: io.engine.clientsCount,
+      uptime: Math.round(process.uptime() / 60) + ' mins',
+      memory: {
+        rss: Math.round(mem.rss / 1024 / 1024) + ' MB',
+        heapUsed: Math.round(mem.heapUsed / 1024 / 1024) + ' MB'
+      }
+    });
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch system stats' }); }
+});
+
+// 4. View Flagged Whispers
+app.get('/api/admin/whispers/flagged', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const flagged = await Confession.find({ isFlagged: true }).select('content authorName createdAt type').sort({ createdAt: -1 }).limit(50);
+    res.json(flagged);
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch flagged whispers' }); }
+});
+
+// 5. Mass Purge Flagged Whispers
+app.delete('/api/admin/whispers/flagged', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const result = await Confession.deleteMany({ isFlagged: true });
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (error) { res.status(500).json({ error: 'Failed to purge flagged whispers' }); }
+});
+
+// 6. Hard Delete User
+app.delete('/api/admin/users/:id', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    await Confession.deleteMany({ author: req.params.id });
+    await Comment.deleteMany({ author: req.params.id });
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: 'Failed to hard delete user' }); }
+});
+
+// 7. Wipe User History
+app.delete('/api/admin/users/:id/whispers', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    await Confession.deleteMany({ author: req.params.id });
+    await User.findByIdAndUpdate(req.params.id, { totalConfessions: 0 });
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: 'Failed to wipe history' }); }
+});
+
+// 8. Grant 1000 XP
+app.post('/api/admin/users/:id/xp', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    await awardXP(req.params.id, 1000, 'ADMIN_BOOST');
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: 'Failed to grant XP' }); }
+});
+
+// 9. Grant VIP Badge
+app.post('/api/admin/users/:id/badge', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    await User.findByIdAndUpdate(req.params.id, { $addToSet: { badges: 'Admin VIP' } });
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: 'Failed to assign badge' }); }
+});
+
+// 10. Force Identity Reroll
+app.post('/api/admin/users/:id/reroll', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const { identity, rarity } = await generateUniqueIdentity();
+    await User.findByIdAndUpdate(req.params.id, { anonymousName: identity, rarity });
+    res.json({ success: true, newIdentity: identity });
+  } catch (error) { res.status(500).json({ error: 'Failed to reroll identity' }); }
 });
 
 // =============================================================================
