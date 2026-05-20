@@ -1877,13 +1877,20 @@ const HomePage = () => {
                             <td className="px-4 py-3">Lvl {u.level}</td>
                             <td className="px-4 py-3">{u.isBanned ? <span className="text-red-500 font-bold">BANNED</span> : <span className="text-green-500">Active</span>}</td>
                             <td className="px-4 py-3">
-                              <div className="flex gap-2 flex-wrap max-w-[200px]">
-                                <button onClick={() => toggleUserBan(u._id)} className={`px-2 py-1 rounded text-xs font-bold text-white ${u.isBanned ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}>{u.isBanned ? 'Unban' : 'Ban'}</button>
-                                <button onClick={() => { if(window.confirm('Delete user completely?')) executeAdminAction(`/api/admin/users/${u._id}`, 'DELETE'); }} className="px-2 py-1 rounded bg-red-800 text-white text-xs hover:bg-red-900" title="Hard Delete User">Del</button>
-                                <button onClick={() => { if(window.confirm('Wipe all their whispers?')) executeAdminAction(`/api/admin/users/${u._id}/whispers`, 'DELETE'); }} className="px-2 py-1 rounded bg-orange-600 text-white text-xs hover:bg-orange-700" title="Wipe History">Wipe</button>
-                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/xp`)} className="px-2 py-1 rounded bg-blue-500 text-white text-xs hover:bg-blue-600" title="Grant +1000 XP">+XP</button>
-                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/badge`)} className="px-2 py-1 rounded bg-purple-500 text-white text-xs hover:bg-purple-600" title="Grant VIP Badge">VIP</button>
-                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/reroll`)} className="px-2 py-1 rounded bg-gray-600 text-white text-xs hover:bg-gray-700" title="Force New Identity">Reroll</button>
+                              <div className="flex gap-1 flex-wrap max-w-[250px]">
+                                <button onClick={() => toggleUserBan(u._id)} className={`px-2 py-1 rounded text-[10px] font-bold text-white ${u.isBanned ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}>{u.isBanned ? 'Unban' : 'Ban'}</button>
+                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/mute`, 'PATCH')} className={`px-2 py-1 rounded text-[10px] font-bold text-white ${u.isMuted ? 'bg-green-500 hover:bg-green-600' : 'bg-orange-500 hover:bg-orange-600'}`}>{u.isMuted ? 'Unmute' : 'Mute'}</button>
+                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/shadowban`, 'PATCH')} className={`px-2 py-1 rounded text-[10px] font-bold text-white ${u.isShadowbanned ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-800 hover:bg-gray-900'}`}>{u.isShadowbanned ? 'Unshadow' : 'Shadowban'}</button>
+                                <button onClick={() => { if(window.confirm('Delete user completely?')) executeAdminAction(`/api/admin/users/${u._id}`, 'DELETE'); }} className="px-2 py-1 rounded bg-red-800 text-white text-[10px] hover:bg-red-900" title="Hard Delete User">Del</button>
+                                <button onClick={() => { if(window.confirm('Wipe all their whispers?')) executeAdminAction(`/api/admin/users/${u._id}/whispers`, 'DELETE'); }} className="px-2 py-1 rounded bg-orange-600 text-white text-[10px] hover:bg-orange-700" title="Wipe History">Wipe</button>
+                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/xp`)} className="px-2 py-1 rounded bg-blue-500 text-white text-[10px] hover:bg-blue-600" title="Grant +1000 XP">+XP</button>
+                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/reset-xp`, 'PATCH')} className="px-2 py-1 rounded bg-blue-800 text-white text-[10px] hover:bg-blue-900" title="Reset XP to 0">Rst XP</button>
+                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/badge`)} className="px-2 py-1 rounded bg-purple-500 text-white text-[10px] hover:bg-purple-600" title="Grant VIP Badge">VIP</button>
+                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/clear-badges`, 'PATCH')} className="px-2 py-1 rounded bg-purple-800 text-white text-[10px] hover:bg-purple-900" title="Clear All Badges">Clr Bdg</button>
+                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/reroll`)} className="px-2 py-1 rounded bg-gray-600 text-white text-[10px] hover:bg-gray-700" title="Force New Identity">Reroll</button>
+                                <button onClick={() => executeAdminAction(`/api/admin/users/${u._id}/avatar`, 'PATCH')} className="px-2 py-1 rounded bg-teal-600 text-white text-[10px] hover:bg-teal-700" title="Clear Avatar">Clr Avt</button>
+                                <button onClick={() => { const msg = window.prompt('System DM to user:'); if (msg) executeAdminAction(`/api/admin/users/${u._id}/dm`, 'POST', { message: msg }); }} className="px-2 py-1 rounded bg-indigo-500 text-white text-[10px] hover:bg-indigo-600" title="Send System DM">DM</button>
+                                <button onClick={() => { const r = window.prompt('Enter tier (COMMON, UNCOMMON, RARE, EXCLUSIVE, LEGENDARY, MYTHIC):'); if (r) executeAdminAction(`/api/admin/users/${u._id}/rarity`, 'PATCH', { rarity: r.toUpperCase() }); }} className="px-2 py-1 rounded bg-pink-600 text-white text-[10px] hover:bg-pink-700" title="Set Rarity">Rarity</button>
                               </div>
                             </td>
                           </tr>
@@ -1908,7 +1915,11 @@ const HomePage = () => {
                           <p className="text-xs text-[var(--text-muted)] mb-1">{f.authorName} • {new Date(f.createdAt).toLocaleString()}</p>
                           <p className="text-sm text-[var(--text-primary)]">{f.content || `[${f.type} whisper]`}</p>
                         </div>
-                        <button onClick={() => { executeAdminAction(`/api/confessions/${f._id}`, 'DELETE'); }} className="bg-red-500/20 text-red-500 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-500 hover:text-white">Delete</button>
+                        <div className="flex flex-col gap-2">
+                          <button onClick={() => { executeAdminAction(`/api/confessions/${f._id}`, 'DELETE'); }} className="bg-red-500/20 text-red-500 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-500 hover:text-white">Delete</button>
+                          <button onClick={() => { executeAdminAction(`/api/admin/whispers/${f._id}/approve`, 'PATCH'); }} className="bg-green-500/20 text-green-500 px-3 py-1 rounded-full text-xs font-bold hover:bg-green-500 hover:text-white">Approve</button>
+                          <button onClick={() => { executeAdminAction(`/api/admin/whispers/${f._id}/boost`, 'PATCH'); }} className="bg-yellow-500/20 text-yellow-500 px-3 py-1 rounded-full text-xs font-bold hover:bg-yellow-500 hover:text-white">Boost</button>
+                        </div>
                       </div>
                     )) : <p className="text-[var(--text-muted)] italic">No flagged content currently.</p>}
                   </div>
@@ -1936,6 +1947,10 @@ const HomePage = () => {
                           <p>RAM (RSS): {adminData.system.memory.rss}</p>
                           <p>Heap Used: {adminData.system.memory.heapUsed}</p>
                         </div>
+                      </div>
+                      <div className="flex justify-between items-center mt-4">
+                        <span className="text-[var(--text-secondary)] font-medium text-sm">Purge Old Whispers ({'>'}30 Days)</span>
+                        <button onClick={() => { if(window.confirm('Delete all whispers older than 30 days?')) executeAdminAction('/api/admin/whispers/old', 'DELETE'); }} className="px-4 py-2 rounded-lg font-bold text-white transition-colors bg-red-600 hover:bg-red-700 text-xs">Run Purge</button>
                       </div>
                     </div>
                   </div>

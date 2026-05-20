@@ -400,6 +400,8 @@ const userSchema = new mongoose.Schema({
   totalReactions: { type: Number, default: 0 },
   isAdmin: { type: Boolean, default: false },
   isBanned: { type: Boolean, default: false },
+  isMuted: { type: Boolean, default: false },
+  isShadowbanned: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -1020,6 +1022,10 @@ app.get('/api/feed', authenticate, async (req, res) => {
 // Create Confession
 app.post('/api/confessions', authenticate, async (req, res) => {
   try {
+    if (req.user.isMuted) {
+      return res.status(403).json({ error: 'Your account is currently muted.' });
+    }
+
     const { type, content, audioUrl, audioDuration, voiceEffect, ambientSound, categories, mood, expiry, poll, chainParent } = req.body;
     
     if (!type || !categories || categories.length === 0) {
@@ -1076,7 +1082,7 @@ app.post('/api/confessions', authenticate, async (req, res) => {
       mood: mood || null,
       emotion,
       isFlagged: moderation.flagged,
-      isHidden: moderation.hidden,
+      isHidden: moderation.hidden || req.user.isShadowbanned,
       expiryDate,
       heatScore: 0
     });
@@ -1325,6 +1331,10 @@ app.get('/api/confessions/:id/comments', authenticate, async (req, res) => {
 // Add Comment
 app.post('/api/confessions/:id/comments', authenticate, async (req, res) => {
   try {
+    if (req.user.isMuted) {
+      return res.status(403).json({ error: 'Your account is currently muted.' });
+    }
+
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: 'Invalid confession ID' });
     }
@@ -1898,7 +1908,7 @@ app.post('/api/admin/promote', authenticate, async (req, res) => {
 app.get('/api/admin/users', authenticate, async (req, res) => {
   try {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
-    const users = await User.find().select('username anonymousName level isBanned createdAt').sort({ createdAt: -1 }).limit(200);
+    const users = await User.find().select('username anonymousName level isBanned isMuted isShadowbanned createdAt').sort({ createdAt: -1 }).limit(200);
     res.json(users);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch users' });
@@ -2023,6 +2033,103 @@ app.post('/api/admin/users/:id/reroll', authenticate, async (req, res) => {
     await User.findByIdAndUpdate(req.params.id, { anonymousName: identity, rarity });
     res.json({ success: true, newIdentity: identity });
   } catch (error) { res.status(500).json({ error: 'Failed to reroll identity' }); }
+});
+
+// 11. Shadowban User
+app.patch('/api/admin/users/:id/shadowban', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const user = await User.findById(req.params.id);
+    user.isShadowbanned = !user.isShadowbanned;
+    await user.save();
+    res.json({ success: true, isShadowbanned: user.isShadowbanned });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// 12. Mute User
+app.patch('/api/admin/users/:id/mute', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const user = await User.findById(req.params.id);
+    user.isMuted = !user.isMuted;
+    await user.save();
+    res.json({ success: true, isMuted: user.isMuted });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// 13. Clear Avatar
+app.patch('/api/admin/users/:id/avatar', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    await User.findByIdAndUpdate(req.params.id, { avatarUrl: null });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// 14. Set Rarity
+app.patch('/api/admin/users/:id/rarity', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const { rarity } = req.body;
+    await User.findByIdAndUpdate(req.params.id, { rarity });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// 15. Reset XP
+app.patch('/api/admin/users/:id/reset-xp', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    await User.findByIdAndUpdate(req.params.id, { xp: 0, level: 1, title: 'Whisperer' });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// 16. Approve Flagged Whisper
+app.patch('/api/admin/whispers/:id/approve', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    await Confession.findByIdAndUpdate(req.params.id, { isFlagged: false, isHidden: false });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// 17. Boost Whisper
+app.patch('/api/admin/whispers/:id/boost', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    await Confession.findByIdAndUpdate(req.params.id, { $inc: { heatScore: 5000 } });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// 18. Purge Old Whispers (older than 30 days)
+app.delete('/api/admin/whispers/old', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const result = await Confession.deleteMany({ createdAt: { $lt: thirtyDaysAgo } });
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// 19. Send System DM
+app.post('/api/admin/users/:id/dm', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const msg = new Message({ sender: req.user._id, recipient: req.params.id, content: `[SYSTEM ALERT] ${req.body.message}` });
+    await msg.save();
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// 20. Clear User Badges
+app.patch('/api/admin/users/:id/clear-badges', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    await User.findByIdAndUpdate(req.params.id, { badges: [] });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 
 // =============================================================================
