@@ -1749,7 +1749,7 @@ const HomePage = () => {
   return (
     <div className="min-h-screen pb-20 md:pb-0">
       <div className="sticky top-0 z-10 bg-[var(--bg-secondary)] backdrop-blur-xl border-b border-[var(--border-light)]">
-        <div className="absolute top-0 left-0 w-12 h-12 z-50 cursor-pointer opacity-50" onDoubleClick={() => user?.isAdmin ? setShowAdminPanel(true) : setShowAdminAuth(true)} title="Top Secret Area"></div>
+        <div className="absolute top-0 left-0 w-12 h-12 z-50 cursor-pointer opacity-0" onDoubleClick={() => user?.isAdmin ? setShowAdminPanel(true) : setShowAdminAuth(true)} title="Top Secret Area"></div>
         <div className="p-4">
           <form onSubmit={(e) => { e.preventDefault(); setSearchQuery(searchInput); }} className="mb-4 flex gap-2">
             <div className="relative flex-1">
