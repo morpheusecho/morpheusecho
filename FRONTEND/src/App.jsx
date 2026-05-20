@@ -3275,7 +3275,9 @@ const AdminPage = () => {
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="users" element={<AdminUserList />} />
           <Route path="users/:userId" element={<AdminUserDetail />} />
-          {/* Add routes for Content, System, Logs here */}
+          <Route path="content" element={<AdminContentPage />} />
+          <Route path="system" element={<AdminSystemPage />} />
+          <Route path="logs" element={<AdminLogsPage />} />
           <Route index element={<Navigate to="dashboard" replace />} />
         </Routes>
       </main>
@@ -3366,14 +3368,365 @@ const AdminDashboard = () => {
   );
 };
 
+const AdminSystemPage = () => {
+  const [systemInfo, setSystemInfo] = useState(null);
+  const [broadcastMsg, setBroadcastMsg] = useState('');
+
+  const fetchSystemInfo = useCallback(async () => {
+    const token = localStorage.getItem('morpheus_token');
+    const res = await fetch(`${SOCKET_URL}/api/admin/system`, { headers: { 'Authorization': `Bearer ${token}` } });
+    if (res.ok) setSystemInfo(await res.json());
+  }, []);
+
+  useEffect(() => {
+    fetchSystemInfo();
+  }, [fetchSystemInfo]);
+
+  const handleAdminAction = async (endpoint, method, body) => {
+    const token = localStorage.getItem('morpheus_token');
+    const res = await fetch(`${SOCKET_URL}${endpoint}`, {
+      method,
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : null
+    });
+    if (res.ok) {
+      fetchSystemInfo(); // Refresh data after action
+      if (endpoint === '/api/admin/broadcast') {
+        setBroadcastMsg('');
+        alert('Broadcast sent!');
+      }
+    } else {
+      alert('Action failed.');
+    }
+  };
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold mb-6">System Controls & Diagnostics</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+          <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4 border-b border-[var(--border-strong)] pb-2">Live Diagnostics</h3>
+          {systemInfo ? (
+            <div className="space-y-3 text-sm font-mono text-green-500">
+              <p><span className="text-[var(--text-muted)]">Maintenance Mode:</span> {systemInfo.maintenanceMode ? 'ACTIVE' : 'Disabled'}</p>
+              <p><span className="text-[var(--text-muted)]">Active Sockets:</span> {systemInfo.activeSockets}</p>
+              <p><span className="text-[var(--text-muted)]">Server Uptime:</span> {systemInfo.uptime}</p>
+              <p><span className="text-[var(--text-muted)]">Memory (RSS):</span> {systemInfo.memory.rss}</p>
+              <p><span className="text-[var(--text-muted)]">Heap Used:</span> {systemInfo.memory.heapUsed}</p>
+            </div>
+          ) : <p>Loading system info...</p>}
+        </div>
+        <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+          <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4 border-b border-[var(--border-strong)] pb-2">Global Actions</h3>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-[var(--text-secondary)] font-medium">Maintenance Mode</span>
+              <button onClick={() => handleAdminAction('/api/admin/maintenance', 'POST')} className={`px-4 py-2 rounded-lg font-bold text-white transition-colors ${systemInfo?.maintenanceMode ? 'bg-red-500' : 'bg-gray-600'}`}>
+                {systemInfo?.maintenanceMode ? 'Deactivate' : 'Activate'}
+              </button>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-[var(--text-secondary)] font-medium">Purge Old Whispers</span>
+              <button onClick={() => { if (window.confirm('Delete whispers >30 days old?')) handleAdminAction('/api/admin/whispers/old', 'DELETE'); }} className="px-4 py-2 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 text-xs">
+                Run Purge
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="md:col-span-2 bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+          <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4 border-b border-[var(--border-strong)] pb-2">Global Broadcast</h3>
+          <textarea value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)} placeholder="Send a real-time alert to all online users..." className="w-full bg-[var(--bg-hover)] border border-[var(--border-strong)] rounded-lg p-3 text-sm text-white mb-3" rows="3"></textarea>
+          <button onClick={() => handleAdminAction('/api/admin/broadcast', 'POST', { message: broadcastMsg })} className="bg-blue-500 w-full text-white py-2 rounded-lg font-bold">Send Global Alert</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AdminContentPage = () => {
+  const [tab, setTab] = useState('whispers');
+  const [flaggedWhispers, setFlaggedWhispers] = useState([]);
+  const [reportedComments, setReportedComments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+      const [whispersRes, commentsRes] = await Promise.all([
+        fetch(`${SOCKET_URL}/api/admin/whispers/flagged`, { headers }),
+        fetch(`${SOCKET_URL}/api/admin/comments/reported`, { headers })
+      ]);
+      if (whispersRes.ok) setFlaggedWhispers(await whispersRes.json());
+      if (commentsRes.ok) setReportedComments(await commentsRes.json());
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleAdminAction = async (endpoint, method) => {
+    if (!window.confirm('Are you sure? This action is permanent.')) return;
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}${endpoint}`, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchData(); // Refresh data after action
+      } else {
+        alert('Action failed.');
+      }
+    } catch (err) {
+      alert('An error occurred.');
+    }
+  };
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold mb-6">Content Moderation</h1>
+      <div className="flex border-b border-[var(--border-light)] mb-6">
+        <button onClick={() => setTab('whispers')} className={`px-4 py-2 text-sm font-semibold ${tab === 'whispers' ? 'text-[var(--accent-primary)] border-b-2 border-[var(--accent-primary)]' : 'text-[var(--text-muted)]'}`}>
+          Flagged Whispers ({flaggedWhispers.length})
+        </button>
+        <button onClick={() => setTab('comments')} className={`px-4 py-2 text-sm font-semibold ${tab === 'comments' ? 'text-[var(--accent-primary)] border-b-2 border-[var(--accent-primary)]' : 'text-[var(--text-muted)]'}`}>
+          Reported Comments ({reportedComments.length})
+        </button>
+      </div>
+
+      {loading ? (
+        <div>Loading moderation queue...</div>
+      ) : tab === 'whispers' ? (
+        <div className="space-y-4">
+          {flaggedWhispers.length > 0 ? flaggedWhispers.map(whisper => (
+            <div key={whisper._id} className="bg-[var(--bg-card)] p-4 rounded-lg border border-red-500/20">
+              <p className="text-xs text-[var(--text-muted)]">{whisper.authorName} • {new Date(whisper.createdAt).toLocaleString()}</p>
+              <p className="my-2">{whisper.content || '[Voice Whisper]'}</p>
+              <div className="flex gap-2 mt-2"><button onClick={() => handleAdminAction(`/api/confessions/${whisper._id}`, 'DELETE')} className="text-xs px-3 py-1 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30">Delete</button><button onClick={() => handleAdminAction(`/api/admin/whispers/${whisper._id}/approve`, 'PATCH')} className="text-xs px-3 py-1 rounded-full bg-green-500/20 text-green-400 hover:bg-green-500/30">Approve</button></div>
+            </div>
+          )) : <p className="text-sm text-[var(--text-muted)]">No flagged whispers found.</p>}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {reportedComments.length > 0 ? reportedComments.map(comment => (
+            <div key={comment._id} className="bg-[var(--bg-card)] p-4 rounded-lg border border-orange-500/20">
+              <div className="text-xs text-[var(--text-muted)] mb-2"><p><strong>Comment by:</strong> {comment.author?.anonymousName} ({comment.reportedBy.length} reports)</p><p><strong>Original Whisper:</strong> "{comment.confession?.content?.substring(0, 50)}..." by {comment.confession?.authorName}</p></div>
+              <p className="my-2 p-3 bg-[var(--bg-hover)] rounded-md">"{comment.content}"</p>
+              <div className="flex gap-2 mt-2"><button onClick={() => handleAdminAction(`/api/admin/comments/${comment._id}`, 'DELETE')} className="text-xs px-3 py-1 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30">Delete Comment</button><button onClick={() => handleAdminAction(`/api/admin/comments/${comment._id}/dismiss`, 'PATCH')} className="text-xs px-3 py-1 rounded-full bg-gray-500/20 text-gray-400 hover:bg-gray-500/30">Dismiss Report</button></div>
+            </div>
+          )) : <p className="text-sm text-[var(--text-muted)]">No reported comments found.</p>}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AdminLogsPage = () => {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem('morpheus_token');
+        const res = await fetch(`${SOCKET_URL}/api/admin/logs`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) setLogs(await res.json());
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchLogs();
+  }, []);
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold mb-6">Admin Action Logs</h1>
+      {loading ? <div>Loading logs...</div> : (
+        <div className="bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl overflow-hidden">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-[var(--text-muted)] uppercase bg-[var(--bg-hover)]">
+              <tr><th className="px-6 py-3">Admin</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Target</th><th className="px-6 py-3">Details</th><th className="px-6 py-3">Timestamp</th></tr>
+            </thead>
+            <tbody>
+              {logs.map(log => (
+                <tr key={log._id} className="border-b border-[var(--border-light)] hover:bg-[var(--bg-hover)]">
+                  <td className="px-6 py-4 font-medium">{log.adminUser?.anonymousName || 'System'}</td><td className="px-6 py-4 font-mono text-cyan-400">{log.action}</td><td className="px-6 py-4">{log.targetUser?.anonymousName || log.targetConfession || 'N/A'}</td><td className="px-6 py-4 text-xs max-w-xs truncate">{log.details}</td><td className="px-6 py-4 text-xs">{new Date(log.timestamp).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AdminUserList = () => {
-  // Placeholder for user list UI
-  return <div>User Management Page</div>;
+  const [users, setUsers] = useState([]);
+  const [pagination, setPagination] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const navigate = useNavigate();
+
+  const fetchUsers = useCallback(async (currentPage, currentSearch) => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}/api/admin/users-list?page=${currentPage}&search=${currentSearch}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data.users);
+        setPagination(data.pagination);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsers(page, search);
+  }, [page, fetchUsers]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setPage(1);
+    fetchUsers(1, search);
+  };
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold mb-6">User Management</h1>
+      <form onSubmit={handleSearch} className="mb-6 flex gap-2">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by username or anonymous name..."
+          className="flex-1 bg-[var(--bg-card)] border border-[var(--border-light)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-[var(--accent-primary)]"
+        />
+        <button type="submit" className="px-4 py-2 bg-[var(--accent-primary)] text-white rounded-lg text-sm font-semibold">Search</button>
+      </form>
+
+      {loading ? (
+        <div>Loading users...</div>
+      ) : (
+        <>
+          <div className="bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl overflow-hidden">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-[var(--text-muted)] uppercase bg-[var(--bg-hover)]">
+                <tr>
+                  <th className="px-6 py-3">Anonymous Name</th>
+                  <th className="px-6 py-3">Username</th>
+                  <th className="px-6 py-3">Level</th>
+                  <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3">Joined</th>
+                  <th className="px-6 py-3"><span className="sr-only">Edit</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(user => (
+                  <tr key={user._id} className="border-b border-[var(--border-light)] hover:bg-[var(--bg-hover)]">
+                    <td className="px-6 py-4 font-medium text-[var(--text-primary)]">{user.anonymousName}</td>
+                    <td className="px-6 py-4">{user.username}</td>
+                    <td className="px-6 py-4">{user.level}</td>
+                    <td className="px-6 py-4">
+                      {user.isBanned ? <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-500/20 text-red-400">Banned</span>
+                        : user.isMuted ? <span className="px-2 py-1 text-xs font-semibold rounded-full bg-orange-500/20 text-orange-400">Muted</span>
+                        : <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-500/20 text-green-400">Active</span>}
+                    </td>
+                    <td className="px-6 py-4">{new Date(user.createdAt).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 text-right">
+                      <button onClick={() => navigate(`/admin/users/${user._id}`)} className="font-medium text-[var(--accent-primary)] hover:underline">Manage</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {pagination && pagination.pages > 1 && (
+            <div className="flex justify-between items-center mt-4">
+              <span className="text-sm text-[var(--text-muted)]">Page {pagination.page} of {pagination.pages}</span>
+              <div className="flex gap-2">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1 border border-[var(--border-light)] rounded-md text-sm disabled:opacity-50">Previous</button>
+                <button onClick={() => setPage(p => Math.min(pagination.pages, p + 1))} disabled={page === pagination.pages} className="px-3 py-1 border border-[var(--border-light)] rounded-md text-sm disabled:opacity-50">Next</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
 };
 
 const AdminUserDetail = () => {
-  // Placeholder for user detail/edit UI
-  return <div>User Detail Page</div>;
+  const { userId } = useParams();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchUser = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}/api/users/${userId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data.user);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
+
+  if (loading) return <div>Loading user details...</div>;
+  if (!user) return <div>User not found.</div>;
+
+  return (
+    <div>
+      <Link to="/admin/users" className="text-sm text-[var(--accent-primary)] hover:underline mb-4 inline-block">
+        &larr; Back to User List
+      </Link>
+      <h1 className="text-3xl font-bold mb-2">{user.anonymousName}</h1>
+      <p className="text-[var(--text-muted)] mb-6">Username: {user.username}</p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+          <h2 className="font-semibold mb-4">User Details</h2>
+          <div className="space-y-2 text-sm">
+            <p><strong>ID:</strong> {user.id}</p>
+            <p><strong>Level:</strong> {user.level}</p>
+            <p><strong>XP:</strong> {user.xp}</p>
+            <p><strong>Rarity:</strong> {user.rarity}</p>
+            <p><strong>Joined:</strong> {new Date(user.joinedAt).toLocaleString()}</p>
+          </div>
+        </div>
+        <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+          <h2 className="font-semibold mb-4">Moderation Actions</h2>
+          {/* Moderation buttons can be added here */}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // =============================================================================

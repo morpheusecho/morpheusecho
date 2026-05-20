@@ -350,6 +350,9 @@ io.on('connection', (socket) => {
         if (decoded.userId === data.userId) {
           socket.join(`user_${data.userId}`);
           console.log(`User ${data.userId} authenticated on socket`);
+          if (decoded.isAdmin) {
+            socket.join('admin_room');
+          }
         }
       }
     } catch (err) {
@@ -504,6 +507,28 @@ notificationSchema.index({ recipient: 1, read: 1 });
 
 const Notification = mongoose.model('Notification', notificationSchema);
 
+// Admin Log Schema
+const adminLogSchema = new mongoose.Schema({
+  adminUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  action: { type: String, required: true },
+  targetUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  targetConfession: { type: mongoose.Schema.Types.ObjectId, ref: 'Confession' },
+  details: { type: String },
+  timestamp: { type: Date, default: Date.now }
+});
+adminLogSchema.index({ timestamp: -1 });
+const AdminLog = mongoose.model('AdminLog', adminLogSchema);
+
+// =============================================================================
+// ADMIN ACTION LOGGING HELPER
+// =============================================================================
+async function logAdminAction(adminUserId, action, details = {}) {
+  try {
+    await AdminLog.create({ adminUser: adminUserId, action, targetUser: details.targetUserId, targetConfession: details.targetConfessionId, details: details.message });
+  } catch (error) {
+    console.error('Failed to log admin action:', error);
+  }
+}
 // =============================================================================
 // AUTHENTICATION MIDDLEWARE
 // =============================================================================
@@ -2013,6 +2038,7 @@ app.patch('/api/admin/users/:id/ban', authenticate, async (req, res) => {
     const user = await User.findById(req.params.id);
     user.isBanned = !user.isBanned;
     await user.save();
+    await logAdminAction(req.user._id, user.isBanned ? 'BAN_USER' : 'UNBAN_USER', { targetUserId: user._id, message: `User: ${user.username}` });
     res.json({ success: true, isBanned: user.isBanned });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update ban status' });
@@ -2028,6 +2054,7 @@ app.post('/api/admin/broadcast', authenticate, async (req, res) => {
   try {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     io.emit('notification', { type: 'message', message: `📢 SYSTEM: ${req.body.message}` });
+    await logAdminAction(req.user._id, 'GLOBAL_BROADCAST', { message: req.body.message });
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Broadcast failed' }); }
 });
@@ -2038,6 +2065,7 @@ app.post('/api/admin/maintenance', authenticate, async (req, res) => {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     maintenanceMode = !maintenanceMode;
     if (maintenanceMode) io.emit('notification', { type: 'level', message: '⚠️ SYSTEM ENTERING MAINTENANCE MODE' });
+    await logAdminAction(req.user._id, maintenanceMode ? 'MAINTENANCE_ON' : 'MAINTENANCE_OFF');
     res.json({ success: true, maintenanceMode });
   } catch (error) { res.status(500).json({ error: 'Failed to toggle maintenance' }); }
 });
@@ -2073,6 +2101,7 @@ app.delete('/api/admin/whispers/flagged', authenticate, async (req, res) => {
   try {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     const result = await Confession.deleteMany({ isFlagged: true });
+    await logAdminAction(req.user._id, 'PURGE_FLAGGED', { message: `Deleted ${result.deletedCount} whispers.` });
     res.json({ success: true, deletedCount: result.deletedCount });
   } catch (error) { res.status(500).json({ error: 'Failed to purge flagged whispers' }); }
 });
@@ -2084,6 +2113,7 @@ app.delete('/api/admin/users/:id', authenticate, async (req, res) => {
     await Confession.deleteMany({ author: req.params.id });
     await Comment.deleteMany({ author: req.params.id });
     await User.findByIdAndDelete(req.params.id);
+    await logAdminAction(req.user._id, 'HARD_DELETE_USER', { targetUserId: req.params.id });
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Failed to hard delete user' }); }
 });
@@ -2094,6 +2124,7 @@ app.delete('/api/admin/users/:id/whispers', authenticate, async (req, res) => {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     await Confession.deleteMany({ author: req.params.id });
     await User.findByIdAndUpdate(req.params.id, { totalConfessions: 0 });
+    await logAdminAction(req.user._id, 'WIPE_USER_HISTORY', { targetUserId: req.params.id });
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Failed to wipe history' }); }
 });
@@ -2103,6 +2134,7 @@ app.post('/api/admin/users/:id/xp', authenticate, async (req, res) => {
   try {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     await awardXP(req.params.id, 1000, 'ADMIN_BOOST');
+    await logAdminAction(req.user._id, 'GIVE_XP_1000', { targetUserId: req.params.id });
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Failed to grant XP' }); }
 });
@@ -2112,6 +2144,7 @@ app.post('/api/admin/users/:id/badge', authenticate, async (req, res) => {
   try {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     await User.findByIdAndUpdate(req.params.id, { $addToSet: { badges: 'Admin VIP' } });
+    await logAdminAction(req.user._id, 'GIVE_VIP_BADGE', { targetUserId: req.params.id });
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: 'Failed to assign badge' }); }
 });
@@ -2122,6 +2155,7 @@ app.post('/api/admin/users/:id/reroll', authenticate, async (req, res) => {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     const { identity, rarity } = await generateUniqueIdentity();
     await User.findByIdAndUpdate(req.params.id, { anonymousName: identity, rarity });
+    await logAdminAction(req.user._id, 'REROLL_IDENTITY', { targetUserId: req.params.id, message: `New ID: ${identity}` });
     res.json({ success: true, newIdentity: identity });
   } catch (error) { res.status(500).json({ error: 'Failed to reroll identity' }); }
 });
@@ -2133,6 +2167,7 @@ app.patch('/api/admin/users/:id/shadowban', authenticate, async (req, res) => {
     const user = await User.findById(req.params.id);
     user.isShadowbanned = !user.isShadowbanned;
     await user.save();
+    await logAdminAction(req.user._id, user.isShadowbanned ? 'SHADOWBAN_USER' : 'UNSHADOWBAN_USER', { targetUserId: req.params.id });
     res.json({ success: true, isShadowbanned: user.isShadowbanned });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
@@ -2144,6 +2179,7 @@ app.patch('/api/admin/users/:id/mute', authenticate, async (req, res) => {
     const user = await User.findById(req.params.id);
     user.isMuted = !user.isMuted;
     await user.save();
+    await logAdminAction(req.user._id, user.isMuted ? 'MUTE_USER' : 'UNMUTE_USER', { targetUserId: req.params.id });
     res.json({ success: true, isMuted: user.isMuted });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
@@ -2153,6 +2189,7 @@ app.patch('/api/admin/users/:id/avatar', authenticate, async (req, res) => {
   try {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     await User.findByIdAndUpdate(req.params.id, { avatarUrl: null });
+    await logAdminAction(req.user._id, 'CLEAR_AVATAR', { targetUserId: req.params.id });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
@@ -2163,6 +2200,7 @@ app.patch('/api/admin/users/:id/rarity', authenticate, async (req, res) => {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     const { rarity } = req.body;
     await User.findByIdAndUpdate(req.params.id, { rarity });
+    await logAdminAction(req.user._id, 'SET_RARITY', { targetUserId: req.params.id, message: `Rarity: ${rarity}` });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
@@ -2172,6 +2210,7 @@ app.patch('/api/admin/users/:id/reset-xp', authenticate, async (req, res) => {
   try {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     await User.findByIdAndUpdate(req.params.id, { xp: 0, level: 1, title: 'Whisperer' });
+    await logAdminAction(req.user._id, 'RESET_XP', { targetUserId: req.params.id });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
@@ -2181,6 +2220,7 @@ app.patch('/api/admin/whispers/:id/approve', authenticate, async (req, res) => {
   try {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     await Confession.findByIdAndUpdate(req.params.id, { isFlagged: false, isHidden: false });
+    await logAdminAction(req.user._id, 'APPROVE_WHISPER', { targetConfessionId: req.params.id });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
@@ -2190,6 +2230,7 @@ app.patch('/api/admin/whispers/:id/boost', authenticate, async (req, res) => {
   try {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     await Confession.findByIdAndUpdate(req.params.id, { $inc: { heatScore: 5000 } });
+    await logAdminAction(req.user._id, 'BOOST_WHISPER', { targetConfessionId: req.params.id });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
@@ -2200,6 +2241,7 @@ app.delete('/api/admin/whispers/old', authenticate, async (req, res) => {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const result = await Confession.deleteMany({ createdAt: { $lt: thirtyDaysAgo } });
+    await logAdminAction(req.user._id, 'PURGE_OLD_WHISPERS', { message: `Deleted ${result.deletedCount} whispers.` });
     res.json({ success: true, deletedCount: result.deletedCount });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
@@ -2210,6 +2252,7 @@ app.post('/api/admin/users/:id/dm', authenticate, async (req, res) => {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     const msg = new Message({ sender: req.user._id, recipient: req.params.id, content: `[SYSTEM ALERT] ${req.body.message}` });
     await msg.save();
+    await logAdminAction(req.user._id, 'SEND_SYSTEM_DM', { targetUserId: req.params.id, message: req.body.message });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
@@ -2219,10 +2262,125 @@ app.patch('/api/admin/users/:id/clear-badges', authenticate, async (req, res) =>
   try {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
     await User.findByIdAndUpdate(req.params.id, { badges: [] });
+    await logAdminAction(req.user._id, 'CLEAR_BADGES', { targetUserId: req.params.id });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 
+// =============================================================================
+// ADMIN CONTENT MODERATION
+// =============================================================================
+
+// Get Reported Comments
+app.get('/api/admin/comments/reported', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+
+    const reportedComments = await Comment.find({
+      $or: [
+        { isFlagged: true },
+        { 'reportedBy.0': { $exists: true } }
+      ]
+    })
+    .populate('author', 'anonymousName rarity')
+    .populate({
+      path: 'confession',
+      select: 'content authorName'
+    })
+    .sort({ createdAt: -1 })
+    .limit(100);
+
+    res.json(reportedComments);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch reported comments' });
+  }
+});
+
+// Admin: Delete Comment
+app.delete('/api/admin/comments/:id', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const comment = await Comment.findByIdAndDelete(req.params.id);
+    if (comment) {
+      await Confession.findByIdAndUpdate(comment.confession, { $pull: { comments: comment._id }, $inc: { commentCount: -1 } });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete comment' });
+  }
+});
+
+// Get Admin Action Logs
+app.get('/api/admin/logs', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const logs = await AdminLog.find().populate('adminUser', 'username anonymousName').populate('targetUser', 'username anonymousName').sort({ timestamp: -1 }).limit(200);
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch logs' });
+  }
+});
+
+// Admin: Dismiss Comment Report
+app.patch('/api/admin/comments/:id/dismiss', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    await Comment.findByIdAndUpdate(req.params.id, { reportedBy: [], isFlagged: false });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to dismiss report' }); }
+});
+
+// =============================================================================
+// ADMIN USER MANAGEMENT
+// =============================================================================
+
+// Get Users (with search and pagination)
+app.get('/api/admin/users-list', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const page = parseInt(req.query.page) || 1;
+    const limit = 20;
+    const skip = (page - 1) * limit;
+    const searchQuery = req.query.search || '';
+
+    let query = {};
+    if (searchQuery) {
+      const searchRegex = new RegExp(searchQuery, 'i');
+      query = { $or: [{ username: searchRegex }, { anonymousName: searchRegex }] };
+    }
+
+    const users = await User.find(query)
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await User.countDocuments(query);
+
+    res.json({
+      users,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Update User Details
+app.patch('/api/admin/users/:id/details', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const { username, anonymousName } = req.body;
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { $set: { username, anonymousName } },
+      { new: true, runValidators: true }
+    ).select('-password');
+    res.json(updatedUser);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update user details' });
+  }
+});
 // =============================================================================
 // NEW DEDICATED ADMIN PANEL ENDPOINTS
 // =============================================================================
