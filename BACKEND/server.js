@@ -96,6 +96,11 @@ if (missingEnvVars.length > 0) {
 console.log('✅ All required environment variables are set');
 
 // =============================================================================
+// GLOBAL RUNTIME STATES
+// =============================================================================
+let maintenanceMode = false;
+
+// =============================================================================
 // ANONYMOUS IDENTITY GENERATION POOLS
 // =============================================================================
 const IDENTITY_POOLS = {
@@ -162,11 +167,6 @@ const IDENTITY_POOLS = {
   LEGENDARY_COLOURS: [
     'Starfire', 'Moonshadow', 'Sunflare', 'Duskfall', 'Dawnbringer', 'Stormeye', 'Dreamlight', 'Chaosflame'
   ],
-
-// =============================================================================
-// GLOBAL RUNTIME STATES
-// =============================================================================
-let maintenanceMode = false;
 
   // EXCLUSIVE TIER (3%) - Rare & Mystical
   EXCLUSIVE_CREATURES: [

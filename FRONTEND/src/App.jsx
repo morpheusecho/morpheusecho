@@ -1637,6 +1637,19 @@ const HomePage = () => {
     setConfessions([]);
   }, [selectedCategory, sortBy, searchQuery]);
 
+  // Keyboard shortcut for Admin Panel (Ctrl+Shift+A)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        e.preventDefault();
+        if (user?.isAdmin) setShowAdminPanel(true);
+        else setShowAdminAuth(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [user]);
+
   useEffect(() => {
     let isActive = true;
     const fetchFeed = async () => {
@@ -1749,7 +1762,9 @@ const HomePage = () => {
   return (
     <div className="min-h-screen pb-20 md:pb-0">
       <div className="sticky top-0 z-10 bg-[var(--bg-secondary)] backdrop-blur-xl border-b border-[var(--border-light)]">
-        <div className="absolute top-0 left-0 w-12 h-12 z-50 cursor-pointer opacity-0" onDoubleClick={() => user?.isAdmin ? setShowAdminPanel(true) : setShowAdminAuth(true)} title="Top Secret Area"></div>
+        <div className="absolute top-0 left-0 w-20 h-20 z-50 cursor-pointer opacity-0 hover:opacity-100 hover:bg-red-500/20 transition-all duration-300 rounded-br-3xl flex items-start justify-start p-2" onDoubleClick={() => user?.isAdmin ? setShowAdminPanel(true) : setShowAdminAuth(true)} title="Top Secret Area (Double Click or Ctrl+Shift+A)">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
         <div className="p-4">
           <form onSubmit={(e) => { e.preventDefault(); setSearchQuery(searchInput); }} className="mb-4 flex gap-2">
             <div className="relative flex-1">
