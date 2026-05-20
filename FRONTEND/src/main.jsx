@@ -37,6 +37,12 @@ if (!rootElement) {
       navigator.serviceWorker.register('/sw.js').then((registration) => {
         console.log('ServiceWorker registered with scope:', registration.scope);
         
+        // Pro-actively check for updates every hour
+        setInterval(() => {
+          registration.update();
+          console.log('Checked for PWA update.');
+        }, 1000 * 60 * 60); // 1 hour
+
         // Listen for new code pushed to the server (GitHub/Deployment updates)
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
