@@ -4,7 +4,7 @@
 // IMPORTANT: To force the PWA to update with new code changes,
 // you MUST change this CACHE_NAME version number with every deployment.
 // Example: 'morpheus-echo-v2', 'morpheus-echo-v3', etc.
-const CACHE_NAME = 'morpheus-echo-v2';
+const CACHE_NAME = 'morpheus-echo-v3';
 
 // Install event - immediately take over
 self.addEventListener('install', (event) => {

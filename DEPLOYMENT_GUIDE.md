@@ -31,3 +31,8 @@ UPSTASH_REDIS_REST_TOKEN=your_redis_token_here
 - Never commit real credentials to GitHub
 - Use environment variables for all secrets
 - Rotate keys if exposed
+
+## PWA Updates
+
+The Service Worker cache version is now completely automated during the build process. 
+Every time you deploy (or run `npm run build`), a unique timestamp is injected into `sw.js` to ensure users always receive the latest app updates without any manual intervention!
