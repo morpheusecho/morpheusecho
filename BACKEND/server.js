@@ -296,6 +296,8 @@ const BADGES = {
 // EXPRESS APP SETUP
 // =============================================================================
 const app = express();
+app.set('trust proxy', true); // For getting real IP behind proxies
+
 const server = http.createServer(app);
 
 // CORS configuration
@@ -412,6 +414,12 @@ const userSchema = new mongoose.Schema({
   isBanned: { type: Boolean, default: false },
   isMuted: { type: Boolean, default: false },
   isShadowbanned: { type: Boolean, default: false },
+  lastKnownIp: { type: String },
+  ipHistory: [{
+    ip: String,
+    action: { type: String, enum: ['SIGNUP', 'LOGIN'] },
+    timestamp: { type: Date, default: Date.now }
+  }],
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -454,6 +462,8 @@ const confessionSchema = new mongoose.Schema({
   isExpired: { type: Boolean, default: false },
   isHidden: { type: Boolean, default: false, index: true },
   isFlagged: { type: Boolean, default: false, index: true },
+  isPinned: { type: Boolean, default: false },
+  isLocked: { type: Boolean, default: false },
   heatScore: { type: Number, default: 0, index: true },
   reportedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   createdAt: { type: Date, default: Date.now, index: true }
@@ -544,6 +554,11 @@ const authenticate = async (req, res, next) => {
     
     if (!user || user.isBanned) {
       return res.status(401).json({ error: 'User not found or banned' });
+    }
+    
+    // Attach real IP to the request object for logging purposes
+    if (req.ip) {
+      user.lastKnownIp = req.ip;
     }
 
     if (maintenanceMode && !user.isAdmin) {
@@ -838,6 +853,7 @@ app.post('/api/auth/signup', async (req, res) => {
     
     const hashedPassword = await bcrypt.hash(password, 10);
     const { identity, rarity } = await generateUniqueIdentity();
+    const clientIp = req.ip;
     
     const user = new User({
       username,
@@ -851,7 +867,9 @@ app.post('/api/auth/signup', async (req, res) => {
       level: 1,
       title: 'Whisperer',
       streak: 0,
-      badges: rarity === 'LEGENDARY' || rarity === 'MYTHIC' ? ['mythical'] : []
+      badges: rarity === 'LEGENDARY' || rarity === 'MYTHIC' ? ['mythical'] : [],
+      lastKnownIp: clientIp,
+      ipHistory: [{ ip: clientIp, action: 'SIGNUP' }]
     });
     
     await user.save();
@@ -910,6 +928,8 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(403).json({ error: 'Account has been banned' });
     }
     
+    const clientIp = req.ip;
+
     // Daily Activity & Streak Logic
     const lastActiveDate = new Date(user.lastActive || 0);
     const today = new Date();
@@ -932,10 +952,15 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     // Optimized: Update streak and lastActive in a single operation
-    const updatedUser = await User.findByIdAndUpdate(user._id, { streak: updatedStreak, lastActive: new Date() }, { new: true });
+    const updatedUser = await User.findByIdAndUpdate(user._id, {
+      streak: updatedStreak,
+      lastActive: new Date(),
+      lastKnownIp: clientIp,
+      $push: { ipHistory: { $each: [{ ip: clientIp, action: 'LOGIN' }], $slice: -20 } } // Keep last 20 IPs
+    }, { new: true });
     
     const token = jwt.sign(
-      { userId: user._id, username: user.username },
+      { userId: user._id, username: user.username, isAdmin: user.isAdmin },
       CONFIG.JWT_SECRET,
       { expiresIn: CONFIG.JWT_EXPIRES_IN }
     );
@@ -1007,12 +1032,12 @@ app.get('/api/feed', authenticate, async (req, res) => {
     
     let sortOption = {};
     if (sort === 'trending') {
-      sortOption = { heatScore: -1, createdAt: -1 };
+      sortOption = { isPinned: -1, heatScore: -1, createdAt: -1 };
     } else if (sort === 'new') {
-      sortOption = { createdAt: -1 };
+      sortOption = { isPinned: -1, createdAt: -1 };
     } else if (sort === 'following') {
       query.author = { $in: req.user.following };
-      sortOption = { createdAt: -1 };
+      sortOption = { isPinned: -1, createdAt: -1 };
     }
     
     let confessions = await Confession.find(query)
@@ -1410,6 +1435,10 @@ app.post('/api/confessions/:id/comments', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Confession not found' });
     }
     
+    if (confession.isLocked) {
+      return res.status(403).json({ error: 'Comments are locked for this whisper' });
+    }
+    
     const comment = new Comment({
       confession: req.params.id,
       author: req.user._id,
@@ -1606,7 +1635,9 @@ app.get('/api/users/:id', authenticate, async (req, res) => {
         isFollowing,
         isBanned: user.isBanned,
         isMuted: user.isMuted,
-        isShadowbanned: user.isShadowbanned
+        isShadowbanned: user.isShadowbanned,
+        lastKnownIp: req.user.isAdmin ? user.lastKnownIp : undefined,
+        ipHistory: req.user.isAdmin ? user.ipHistory : undefined
       }
     });
   } catch (error) {
@@ -2011,10 +2042,39 @@ app.get('/api/confessions/random', authenticate, async (req, res) => {
 // Verify Admin Password & Promote User
 app.post('/api/admin/promote', authenticate, async (req, res) => {
   try {
-    const { password } = req.body;
+    // Read from header for better security
+    const password = req.headers['x-admin-passcode'];
     if (password === CONFIG.ADMIN_PASSWORD) {
-      await User.findByIdAndUpdate(req.user._id, { isAdmin: true });
-      res.json({ success: true, message: 'Promoted to Admin' });
+      const updatedUser = await User.findByIdAndUpdate(req.user._id, { isAdmin: true }, { new: true });
+
+      const token = jwt.sign(
+        { userId: updatedUser._id, username: updatedUser.username, isAdmin: true },
+        CONFIG.JWT_SECRET,
+        { expiresIn: CONFIG.JWT_EXPIRES_IN }
+      );
+
+      res.json({
+        success: true,
+        message: 'Promoted to Admin. Reloading to apply changes...',
+        token,
+        user: {
+          id: updatedUser._id,
+          anonymousName: updatedUser.anonymousName,
+          rarity: updatedUser.rarity,
+          avatarUrl: updatedUser.avatarUrl,
+          gender: updatedUser.gender,
+          xp: updatedUser.xp,
+          level: updatedUser.level,
+          title: updatedUser.title,
+          streak: updatedUser.streak,
+          badges: updatedUser.badges,
+          isAdmin: updatedUser.isAdmin,
+          totalConfessions: updatedUser.totalConfessions,
+          totalReactions: updatedUser.totalReactions,
+          followers: updatedUser.followers.length,
+          following: updatedUser.following.length
+        }
+      });
     } else {
       res.status(403).json({ error: 'Invalid admin password' });
     }
@@ -2085,7 +2145,19 @@ app.get('/api/admin/system', authenticate, async (req, res) => {
       memory: {
         rss: Math.round(mem.rss / 1024 / 1024) + ' MB',
         heapUsed: Math.round(mem.heapUsed / 1024 / 1024) + ' MB'
-      }
+        },
+        envStatus: {
+          MONGODB_URI: !!process.env.MONGODB_URI,
+          JWT_SECRET: !!process.env.JWT_SECRET,
+          CLOUDINARY_CLOUD_NAME: !!process.env.CLOUDINARY_CLOUD_NAME,
+          CLOUDINARY_API_KEY: !!process.env.CLOUDINARY_API_KEY,
+          CLOUDINARY_API_SECRET: !!process.env.CLOUDINARY_API_SECRET,
+          REDIS_URL: !!process.env.REDIS_URL,
+          UPSTASH_REDIS_REST_TOKEN: !!process.env.UPSTASH_REDIS_REST_TOKEN,
+          GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+          OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+          ADMIN_PASSWORD: !!process.env.ADMIN_PASSWORD
+        }
     });
   } catch (error) { res.status(500).json({ error: 'Failed to fetch system stats' }); }
 });
@@ -2094,8 +2166,18 @@ app.get('/api/admin/system', authenticate, async (req, res) => {
 app.get('/api/admin/whispers/flagged', authenticate, async (req, res) => {
   try {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
-    const flagged = await Confession.find({ isFlagged: true }).select('content authorName createdAt type').sort({ createdAt: -1 }).limit(50);
-    res.json(flagged);
+    const page = parseInt(req.query.page) || 1;
+    const limit = 20;
+    const skip = (page - 1) * limit;
+
+    const query = { isFlagged: true };
+    const flagged = await Confession.find(query).select('content authorName createdAt type').sort({ createdAt: -1 }).skip(skip).limit(limit);
+    const total = await Confession.countDocuments(query);
+
+    res.json({
+      data: flagged,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    });
   } catch (error) { res.status(500).json({ error: 'Failed to fetch flagged whispers' }); }
 });
 
@@ -2270,6 +2352,53 @@ app.patch('/api/admin/users/:id/clear-badges', authenticate, async (req, res) =>
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 
+// 21. Edit Whisper Content
+app.patch('/api/admin/whispers/:id/content', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const { content } = req.body;
+    await Confession.findByIdAndUpdate(req.params.id, { content });
+    await logAdminAction(req.user._id, 'EDIT_WHISPER_CONTENT', { targetConfessionId: req.params.id });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to edit content' }); }
+});
+
+// 22. Pin/Unpin Whisper
+app.patch('/api/admin/whispers/:id/pin', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const confession = await Confession.findById(req.params.id);
+    confession.isPinned = !confession.isPinned;
+    await confession.save();
+    await logAdminAction(req.user._id, confession.isPinned ? 'PIN_WHISPER' : 'UNPIN_WHISPER', { targetConfessionId: req.params.id });
+    res.json({ success: true, isPinned: confession.isPinned });
+  } catch (err) { res.status(500).json({ error: 'Failed to toggle pin' }); }
+});
+
+// 23. Lock/Unlock Comments
+app.patch('/api/admin/whispers/:id/lock', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const confession = await Confession.findById(req.params.id);
+    confession.isLocked = !confession.isLocked;
+    await confession.save();
+    await logAdminAction(req.user._id, confession.isLocked ? 'LOCK_COMMENTS' : 'UNLOCK_COMMENTS', { targetConfessionId: req.params.id });
+    res.json({ success: true, isLocked: confession.isLocked });
+  } catch (err) { res.status(500).json({ error: 'Failed to toggle lock' }); }
+});
+
+// 24. Manual Flag Whisper
+app.patch('/api/admin/whispers/:id/manual-flag', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    await Confession.findByIdAndUpdate(req.params.id, { isFlagged: true });
+    await logAdminAction(req.user._id, 'MANUAL_FLAG_WHISPER', { targetConfessionId: req.params.id });
+    res.json({ success: true, message: 'Whisper has been manually flagged for review.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to flag whisper' });
+  }
+});
+
 // =============================================================================
 // ADMIN CONTENT MODERATION
 // =============================================================================
@@ -2278,22 +2407,33 @@ app.patch('/api/admin/users/:id/clear-badges', authenticate, async (req, res) =>
 app.get('/api/admin/comments/reported', authenticate, async (req, res) => {
   try {
     if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const page = parseInt(req.query.page) || 1;
+    const limit = 20;
+    const skip = (page - 1) * limit;
 
-    const reportedComments = await Comment.find({
+    const query = {
       $or: [
         { isFlagged: true },
         { 'reportedBy.0': { $exists: true } }
       ]
-    })
+    };
+
+    const reportedComments = await Comment.find(query)
     .populate('author', 'anonymousName rarity')
     .populate({
       path: 'confession',
       select: 'content authorName'
     })
     .sort({ createdAt: -1 })
-    .limit(100);
+    .skip(skip)
+    .limit(limit);
 
-    res.json(reportedComments);
+    const total = await Comment.countDocuments(query);
+
+    res.json({
+      data: reportedComments,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch reported comments' });
   }
@@ -2369,6 +2509,55 @@ app.get('/api/admin/users-list', authenticate, async (req, res) => {
   }
 });
 
+// Bulk User Actions
+app.post('/api/admin/users/bulk-action', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const { action, userIds } = req.body;
+
+    if (!action || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ error: 'Invalid request body' });
+    }
+
+    let update = {};
+    let logAction = '';
+
+    switch (action) {
+      case 'ban':
+        update = { isBanned: true };
+        logAction = 'BULK_BAN';
+        break;
+      case 'unban':
+        update = { isBanned: false };
+        logAction = 'BULK_UNBAN';
+        break;
+      case 'mute':
+        update = { isMuted: true };
+        logAction = 'BULK_MUTE';
+        break;
+      case 'unmute':
+        update = { isMuted: false };
+        logAction = 'BULK_UNMUTE';
+        break;
+      case 'delete':
+        await Confession.deleteMany({ author: { $in: userIds } });
+        await Comment.deleteMany({ author: { $in: userIds } });
+        const deleteResult = await User.deleteMany({ _id: { $in: userIds } });
+        await logAdminAction(req.user._id, 'BULK_DELETE_USERS', { message: `Deleted ${deleteResult.deletedCount} users.` });
+        return res.json({ success: true, message: `Deleted ${deleteResult.deletedCount} users.` });
+      default:
+        return res.status(400).json({ error: 'Invalid action' });
+    }
+
+    const result = await User.updateMany({ _id: { $in: userIds } }, { $set: update });
+    await logAdminAction(req.user._id, logAction, { message: `Affected ${result.nModified || result.modifiedCount} users.` });
+
+    res.json({ success: true, message: `Updated ${result.nModified || result.modifiedCount} users.` });
+  } catch (err) {
+    res.status(500).json({ error: 'Bulk action failed' });
+  }
+});
+
 // Update User Details
 app.patch('/api/admin/users/:id/details', authenticate, async (req, res) => {
   try {
@@ -2384,6 +2573,41 @@ app.patch('/api/admin/users/:id/details', authenticate, async (req, res) => {
     res.status(500).json({ error: 'Failed to update user details' });
   }
 });
+
+// =============================================================================
+// EXPORT DATA ROUTES
+// =============================================================================
+
+app.get('/api/admin/export/users', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const users = await User.find().select('username anonymousName rarity level xp streak totalConfessions isBanned createdAt').lean();
+    const headers = ['ID,Username,Anonymous Name,Rarity,Level,XP,Streak,Total Confessions,Banned,Joined'];
+    const rows = users.map(u => `"${u._id}","${u.username}","${u.anonymousName}","${u.rarity}",${u.level},${u.xp},${u.streak},${u.totalConfessions},${u.isBanned},"${new Date(u.createdAt).toISOString()}"`);
+    const csv = headers.concat(rows).join('\n');
+    res.header('Content-Type', 'text/csv');
+    res.header('Content-Disposition', 'attachment; filename="users_export.csv"');
+    res.send(csv);
+  } catch (err) { res.status(500).json({ error: 'Failed to export users' }); }
+});
+
+app.get('/api/admin/export/logs', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const logs = await AdminLog.find().populate('adminUser', 'anonymousName').populate('targetUser', 'anonymousName').sort({ timestamp: -1 }).lean();
+    const headers = ['ID,Admin,Action,Target,Details,Timestamp'];
+    const rows = logs.map(l => {
+      const target = l.targetUser?.anonymousName || (l.targetConfession ? l.targetConfession.toString() : 'N/A');
+      const details = (l.details || '').replace(/"/g, '""');
+      return `"${l._id}","${l.adminUser?.anonymousName || 'System'}","${l.action}","${target}","${details}","${new Date(l.timestamp).toISOString()}"`;
+    });
+    const csv = headers.concat(rows).join('\n');
+    res.header('Content-Type', 'text/csv');
+    res.header('Content-Disposition', 'attachment; filename="logs_export.csv"');
+    res.send(csv);
+  } catch (err) { res.status(500).json({ error: 'Failed to export logs' }); }
+});
+
 // =============================================================================
 // NEW DEDICATED ADMIN PANEL ENDPOINTS
 // =============================================================================

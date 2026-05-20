@@ -1076,6 +1076,9 @@ const ConfessionCard = ({ confession, onDelete, onRefresh }) => {
       </div>
 
       <div className="flex gap-2 mb-3 flex-wrap">
+        {confession.isPinned && (
+          <span className="category-pill text-xs font-bold bg-[var(--accent-secondary)] text-black border border-black shadow-sm">📌 Pinned</span>
+        )}
         {confession.categories?.map(cat => (
           <span key={cat} className={`category-pill ${getCategoryClass(cat)}`}
             style={{ background: `${CATEGORIES.find(c => c.id === cat)?.color}20`, color: CATEGORIES.find(c => c.id === cat)?.color, border: `1px solid ${CATEGORIES.find(c => c.id === cat)?.color}40` }}>
@@ -1237,18 +1240,22 @@ const ConfessionCard = ({ confession, onDelete, onRefresh }) => {
             className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.2)] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <form onSubmit={handleCommentSubmit} className="flex gap-2 mb-4">
-              <input
-                type="text"
-                placeholder="Add a whisper..."
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                className="flex-1 bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.4)] rounded-full px-4 py-2 text-sm focus:outline-none focus:border-[var(--accent-primary)]"
-              />
-              <button type="submit" disabled={!newComment.trim()} className="bg-[var(--accent-primary)] text-white p-2 rounded-full disabled:opacity-50">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-              </button>
-            </form>
+            {confession.isLocked ? (
+              <div className="text-center text-sm text-[var(--text-muted)] italic py-2 mb-2">Comments have been locked by an admin.</div>
+            ) : (
+              <form onSubmit={handleCommentSubmit} className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  placeholder="Add a whisper..."
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  className="flex-1 bg-[var(--bg-hover)] border border-[rgba(255,255,255,0.4)] rounded-full px-4 py-2 text-sm focus:outline-none focus:border-[var(--accent-primary)]"
+                />
+                <button type="submit" disabled={!newComment.trim()} className="bg-[var(--accent-primary)] text-white p-2 rounded-full disabled:opacity-50">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </form>
+            )}
             <div className="space-y-3 max-h-60 overflow-y-auto hide-scrollbar">
               {loadingComments ? (
                 <div className="text-center text-xs text-[var(--text-muted)] py-2">Loading whispers...</div>
@@ -3129,6 +3136,11 @@ const ProfilePage = () => {
             <Link to={`/messages?to=${profile.id || profile._id}`} className="profile-btn secondary">
               Message 💬
             </Link>
+            {currentUser?.isAdmin && (
+              <Link to={`/admin/users/${targetId}`} className="profile-btn secondary" style={{ borderColor: 'var(--accent-primary)', color: 'var(--accent-primary)' }}>
+                Manage User ⚙️
+              </Link>
+            )}
           </div>
         ) : (
           <div className="profile-actions flex-wrap justify-center gap-2">
@@ -3227,13 +3239,15 @@ const AdminProtectedRoute = ({ children }) => {
       const token = localStorage.getItem('morpheus_token');
       const res = await fetch(`${SOCKET_URL}/api/admin/promote`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ password: adminPassword })
+        // Send password in a header for better security, preventing it from being logged in request bodies.
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Admin-Passcode': adminPassword }
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        updateUser({ isAdmin: true });
-        setShowAdminAuth(false);
+        // Securely update token and user data, then reload to ensure all contexts are fresh.
+        localStorage.setItem('morpheus_token', data.token);
+        localStorage.setItem('morpheus_user', JSON.stringify(data.user));
+        window.location.reload();
       } else {
         setAdminError(data.error || 'Invalid password');
       }
@@ -3325,6 +3339,29 @@ const AdminPage = () => {
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const { socket } = useSocket() || {};
+
+  useEffect(() => {
+    if (!socket || !stats) return;
+
+    const handleNewUser = (data) => {
+      setStats(prev => ({
+        ...prev,
+        coreStats: { ...prev.coreStats, totalUsers: prev.coreStats.totalUsers + 1, activeToday: prev.coreStats.activeToday + 1 },
+        growth: { ...prev.growth, users: { ...prev.growth.users, d24h: prev.growth.users.d24h + 1 } }
+      }));
+    };
+
+    const handleNewFlagged = (data) => {
+      setStats(prev => ({ ...prev, content: { ...prev.content, recentFlagged: [data, ...prev.content.recentFlagged].slice(0, 5) } }));
+    };
+
+    socket.on('admin_new_user', handleNewUser);
+    socket.on('admin_new_flagged_content', handleNewFlagged);
+
+    return () => { socket.off('admin_new_user', handleNewUser); socket.off('admin_new_flagged_content', handleNewFlagged); };
+  }, [socket, stats]);
 
   useEffect(() => {
     const token = localStorage.getItem('morpheus_token');
@@ -3475,6 +3512,19 @@ const AdminSystemPage = () => {
           <textarea value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)} placeholder="Send a real-time alert to all online users..." className="w-full bg-[var(--bg-hover)] border border-[var(--border-strong)] rounded-lg p-3 text-sm text-white mb-3" rows="3"></textarea>
           <button onClick={() => handleAdminAction('/api/admin/broadcast', 'POST', { message: broadcastMsg })} className="bg-blue-500 w-full text-white py-2 rounded-lg font-bold">Send Global Alert</button>
         </div>
+        <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)] md:col-span-2">
+          <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4 border-b border-[var(--border-strong)] pb-2">Environment Variables (Read-Only)</h3>
+          {systemInfo?.envStatus ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+              {Object.entries(systemInfo.envStatus).map(([key, isSet]) => (
+                <div key={key} className="flex items-center justify-between bg-[var(--bg-hover)] p-2 rounded border border-[var(--border-light)]">
+                  <span className="font-mono text-[var(--text-secondary)]">{key}</span>
+                  {isSet ? <span className="text-green-500 font-bold" title="Configured">✓</span> : <span className="text-red-500 font-bold" title="Missing">✗</span>}
+                </div>
+              ))}
+            </div>
+          ) : <p className="text-sm text-[var(--text-muted)]">Loading environment status...</p>}
+        </div>
       </div>
     </div>
   );
@@ -3482,27 +3532,39 @@ const AdminSystemPage = () => {
 
 const AdminContentPage = () => {
   const [tab, setTab] = useState('whispers');
-  const [flaggedWhispers, setFlaggedWhispers] = useState([]);
-  const [reportedComments, setReportedComments] = useState([]);
+  const [items, setItems] = useState([]);
+  const [pagination, setPagination] = useState(null);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    const endpoint = tab === 'whispers' ? 'whispers/flagged' : 'comments/reported';
     try {
       const token = localStorage.getItem('morpheus_token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-      const [whispersRes, commentsRes] = await Promise.all([
-        fetch(`${SOCKET_URL}/api/admin/whispers/flagged`, { headers }),
-        fetch(`${SOCKET_URL}/api/admin/comments/reported`, { headers })
-      ]);
-      if (whispersRes.ok) setFlaggedWhispers(await whispersRes.json());
-      if (commentsRes.ok) setReportedComments(await commentsRes.json());
+      const res = await fetch(`${SOCKET_URL}/api/admin/${endpoint}?page=${page}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data.data || []);
+        setPagination(data.pagination);
+      } else {
+        setItems([]);
+        setPagination(null);
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tab, page]);
+
+  useEffect(() => {
+    setPage(1);
+    setItems([]);
+    setPagination(null);
+  }, [tab]);
 
   useEffect(() => {
     fetchData();
@@ -3513,7 +3575,7 @@ const AdminContentPage = () => {
     try {
       const token = localStorage.getItem('morpheus_token');
       const res = await fetch(`${SOCKET_URL}${endpoint}`, {
-        method,
+        method: method, // Correctly use the method parameter
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -3531,35 +3593,44 @@ const AdminContentPage = () => {
       <h1 className="text-3xl font-bold mb-6">Content Moderation</h1>
       <div className="flex border-b border-[var(--border-light)] mb-6">
         <button onClick={() => setTab('whispers')} className={`px-4 py-2 text-sm font-semibold ${tab === 'whispers' ? 'text-[var(--accent-primary)] border-b-2 border-[var(--accent-primary)]' : 'text-[var(--text-muted)]'}`}>
-          Flagged Whispers ({flaggedWhispers.length})
+          Flagged Whispers ({pagination && tab === 'whispers' ? pagination.total : '...'})
         </button>
         <button onClick={() => setTab('comments')} className={`px-4 py-2 text-sm font-semibold ${tab === 'comments' ? 'text-[var(--accent-primary)] border-b-2 border-[var(--accent-primary)]' : 'text-[var(--text-muted)]'}`}>
-          Reported Comments ({reportedComments.length})
+          Reported Comments ({pagination && tab === 'comments' ? pagination.total : '...'})
         </button>
       </div>
 
       {loading ? (
         <div>Loading moderation queue...</div>
-      ) : tab === 'whispers' ? (
-        <div className="space-y-4">
-          {flaggedWhispers.length > 0 ? flaggedWhispers.map(whisper => (
-            <div key={whisper._id} className="bg-[var(--bg-card)] p-4 rounded-lg border border-red-500/20">
-              <p className="text-xs text-[var(--text-muted)]">{whisper.authorName} • {new Date(whisper.createdAt).toLocaleString()}</p>
-              <p className="my-2">{whisper.content || '[Voice Whisper]'}</p>
-              <div className="flex gap-2 mt-2"><button onClick={() => handleAdminAction(`/api/confessions/${whisper._id}`, 'DELETE')} className="text-xs px-3 py-1 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30">Delete</button><button onClick={() => handleAdminAction(`/api/admin/whispers/${whisper._id}/approve`, 'PATCH')} className="text-xs px-3 py-1 rounded-full bg-green-500/20 text-green-400 hover:bg-green-500/30">Approve</button></div>
-            </div>
-          )) : <p className="text-sm text-[var(--text-muted)]">No flagged whispers found.</p>}
-        </div>
       ) : (
-        <div className="space-y-4">
-          {reportedComments.length > 0 ? reportedComments.map(comment => (
-            <div key={comment._id} className="bg-[var(--bg-card)] p-4 rounded-lg border border-orange-500/20">
-              <div className="text-xs text-[var(--text-muted)] mb-2"><p><strong>Comment by:</strong> {comment.author?.anonymousName} ({comment.reportedBy.length} reports)</p><p><strong>Original Whisper:</strong> "{comment.confession?.content?.substring(0, 50)}..." by {comment.confession?.authorName}</p></div>
-              <p className="my-2 p-3 bg-[var(--bg-hover)] rounded-md">"{comment.content}"</p>
-              <div className="flex gap-2 mt-2"><button onClick={() => handleAdminAction(`/api/admin/comments/${comment._id}`, 'DELETE')} className="text-xs px-3 py-1 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30">Delete Comment</button><button onClick={() => handleAdminAction(`/api/admin/comments/${comment._id}/dismiss`, 'PATCH')} className="text-xs px-3 py-1 rounded-full bg-gray-500/20 text-gray-400 hover:bg-gray-500/30">Dismiss Report</button></div>
+        <>
+          <div className="space-y-4">
+            {items.length > 0 ? items.map(item => (
+              tab === 'whispers' ? (
+                <div key={item._id} className="bg-[var(--bg-card)] p-4 rounded-lg border border-red-500/20">
+                  <p className="text-xs text-[var(--text-muted)]">{item.authorName} • {new Date(item.createdAt).toLocaleString()}</p>
+                  <p className="my-2">{item.content || '[Voice Whisper]'}</p>
+                  <div className="flex gap-2 mt-2"><button onClick={() => handleAdminAction(`/api/confessions/${item._id}`, 'DELETE')} className="text-xs px-3 py-1 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30">Delete</button><button onClick={() => handleAdminAction(`/api/admin/whispers/${item._id}/approve`, 'PATCH')} className="text-xs px-3 py-1 rounded-full bg-green-500/20 text-green-400 hover:bg-green-500/30">Approve</button></div>
+                </div>
+              ) : (
+                <div key={item._id} className="bg-[var(--bg-card)] p-4 rounded-lg border border-orange-500/20">
+                  <div className="text-xs text-[var(--text-muted)] mb-2"><p><strong>Comment by:</strong> {item.author?.anonymousName} ({item.reportedBy.length} reports)</p><p><strong>Original Whisper:</strong> "{item.confession?.content?.substring(0, 50)}..." by {item.confession?.authorName}</p></div>
+                  <p className="my-2 p-3 bg-[var(--bg-hover)] rounded-md">"{item.content}"</p>
+                  <div className="flex gap-2 mt-2"><button onClick={() => handleAdminAction(`/api/admin/comments/${item._id}`, 'DELETE')} className="text-xs px-3 py-1 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30">Delete Comment</button><button onClick={() => handleAdminAction(`/api/admin/comments/${item._id}/dismiss`, 'PATCH')} className="text-xs px-3 py-1 rounded-full bg-gray-500/20 text-gray-400 hover:bg-gray-500/30">Dismiss Report</button></div>
+                </div>
+              )
+            )) : <p className="text-sm text-[var(--text-muted)]">No items found in this queue.</p>}
+          </div>
+          {pagination && pagination.pages > 1 && (
+            <div className="flex justify-between items-center mt-6">
+              <span className="text-sm text-[var(--text-muted)]">Page {pagination.page} of {pagination.pages}</span>
+              <div className="flex gap-2">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1 border border-[var(--border-light)] rounded-md text-sm disabled:opacity-50">Previous</button>
+                <button onClick={() => setPage(p => Math.min(pagination.pages, p + 1))} disabled={page === pagination.pages} className="px-3 py-1 border border-[var(--border-light)] rounded-md text-sm disabled:opacity-50">Next</button>
+              </div>
             </div>
-          )) : <p className="text-sm text-[var(--text-muted)]">No reported comments found.</p>}
-        </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -3585,9 +3656,27 @@ const AdminLogsPage = () => {
     fetchLogs();
   }, []);
 
+  const handleExport = async () => {
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}/api/admin/export/logs`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'admin_logs_export.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) { alert(err.message); }
+  };
+
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-6">Admin Action Logs</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Admin Action Logs</h1>
+        <button onClick={handleExport} className="px-4 py-2 bg-[var(--bg-card)] border border-[var(--border-light)] hover:bg-[var(--bg-hover)] text-sm font-semibold rounded-lg flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export CSV</button>
+      </div>
       {loading ? <div>Loading logs...</div> : (
         <div className="bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl overflow-hidden">
           <table className="w-full text-sm text-left">
@@ -3612,15 +3701,17 @@ const AdminUserList = () => {
   const [users, setUsers] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [searchInput, setSearchInput] = useState('');
+  const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const navigate = useNavigate();
 
-  const fetchUsers = useCallback(async (currentPage, currentSearch) => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('morpheus_token');
-      const res = await fetch(`${SOCKET_URL}/api/admin/users-list?page=${currentPage}&search=${currentSearch}`, {
+      const res = await fetch(`${SOCKET_URL}/api/admin/users-list?page=${page}&search=${query}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -3633,26 +3724,83 @@ const AdminUserList = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, query]);
 
   useEffect(() => {
-    fetchUsers(page, search);
-  }, [page, fetchUsers]);
+    fetchUsers();
+  }, [fetchUsers]);
 
   const handleSearch = (e) => {
     e.preventDefault();
     setPage(1);
-    fetchUsers(1, search);
+    setQuery(searchInput);
+    setSelectedUsers([]);
+  };
+
+  const handleSelectUser = (userId) => {
+    setSelectedUsers(prev =>
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedUsers(users.map(u => u._id));
+    } else {
+      setSelectedUsers([]);
+    }
+  };
+
+  const handleBulkAction = async (action) => {
+    const actionText = action.replace('_', ' ').toLowerCase();
+    if (!window.confirm(`Are you sure you want to bulk ${actionText} ${selectedUsers.length} users? This is irreversible.`)) return;
+
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}/api/admin/users/bulk-action`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, userIds: selectedUsers })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || 'Bulk action successful!');
+        setSelectedUsers([]);
+        fetchUsers();
+      } else {
+        alert(`Bulk action failed: ${data.error}`);
+      }
+    } catch (err) {
+      alert('An error occurred during the bulk action.');
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}/api/admin/export/users`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'users_export.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) { alert(err.message); }
   };
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-6">User Management</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">User Management</h1>
+        <button onClick={handleExport} className="px-4 py-2 bg-[var(--bg-card)] border border-[var(--border-light)] hover:bg-[var(--bg-hover)] text-sm font-semibold rounded-lg flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export CSV</button>
+      </div>
       <form onSubmit={handleSearch} className="mb-6 flex gap-2">
         <input
           type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
           placeholder="Search by username or anonymous name..."
           className="flex-1 bg-[var(--bg-card)] border border-[var(--border-light)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-[var(--accent-primary)]"
         />
@@ -3663,10 +3811,24 @@ const AdminUserList = () => {
         <div>Loading users...</div>
       ) : (
         <>
-          <div className="bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl overflow-hidden">
+          {selectedUsers.length > 0 && (
+            <div className="fixed bottom-0 left-0 right-0 z-20 p-4 bg-[var(--bg-secondary)] border-t border-[var(--border-strong)] shadow-[0_-5px_15px_rgba(0,0,0,0.2)] md:left-64">
+              <div className="flex items-center justify-between max-w-7xl mx-auto">
+                <p className="text-sm font-semibold">{selectedUsers.length} user(s) selected</p>
+                <div className="flex gap-2">
+                  <button onClick={() => handleBulkAction('ban')} className="admin-action-btn bg-red-500/20 text-red-400">Ban</button>
+                  <button onClick={() => handleBulkAction('mute')} className="admin-action-btn bg-orange-500/20 text-orange-400">Mute</button>
+                  <button onClick={() => handleBulkAction('delete')} className="admin-action-btn bg-red-800/40 text-red-400">Delete</button>
+                  <button onClick={() => setSelectedUsers([])} className="admin-action-btn bg-gray-500/20 text-gray-400">Clear</button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl overflow-hidden mb-24 md:mb-0">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-[var(--text-muted)] uppercase bg-[var(--bg-hover)]">
                 <tr>
+                  <th className="px-4 py-3 w-4"><input type="checkbox" onChange={handleSelectAll} checked={selectedUsers.length === users.length && users.length > 0} /></th>
                   <th className="px-6 py-3">Anonymous Name</th>
                   <th className="px-6 py-3">Username</th>
                   <th className="px-6 py-3">Level</th>
@@ -3677,7 +3839,8 @@ const AdminUserList = () => {
               </thead>
               <tbody>
                 {users.map(user => (
-                  <tr key={user._id} className="border-b border-[var(--border-light)] hover:bg-[var(--bg-hover)]">
+                  <tr key={user._id} className={`border-b border-[var(--border-light)] hover:bg-[var(--bg-hover)] ${selectedUsers.includes(user._id) ? 'bg-[var(--accent-light)]' : ''}`}>
+                    <td className="px-4 py-4"><input type="checkbox" onChange={() => handleSelectUser(user._id)} checked={selectedUsers.includes(user._id)} /></td>
                     <td className="px-6 py-4 font-medium text-[var(--text-primary)]">{user.anonymousName}</td>
                     <td className="px-6 py-4">{user.username}</td>
                     <td className="px-6 py-4">{user.level}</td>
@@ -3714,6 +3877,7 @@ const AdminUserDetail = () => {
   const { userId } = useParams();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [editData, setEditData] = useState({ username: '', anonymousName: '' });
 
   const fetchUser = useCallback(async () => {
     setLoading(true);
@@ -3723,6 +3887,7 @@ const AdminUserDetail = () => {
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
+        setEditData({ username: data.user.username, anonymousName: data.user.anonymousName });
       }
     } catch (err) {
       console.error(err);
@@ -3760,6 +3925,15 @@ const AdminUserDetail = () => {
     }
   };
 
+  const handleDetailsSave = () => {
+    handleAdminAction(
+      `/api/admin/users/${userId}/details`,
+      'PATCH',
+      { username: editData.username, anonymousName: editData.anonymousName },
+      'Are you sure you want to change this user\'s names? This can be disruptive.'
+    );
+  };
+
   return (
     <div>
       <Link to="/admin/users" className="text-sm text-[var(--accent-primary)] hover:underline mb-4 inline-block">
@@ -3768,7 +3942,7 @@ const AdminUserDetail = () => {
       <h1 className="text-3xl font-bold mb-2">{user.anonymousName}</h1>
       <p className="text-[var(--text-muted)] mb-6">Username: {user.username}</p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
           <h2 className="font-semibold mb-4">User Details</h2>
           <div className="space-y-2 text-sm">
@@ -3777,11 +3951,26 @@ const AdminUserDetail = () => {
             <p><strong>XP:</strong> {user.xp}</p>
             <p><strong>Rarity:</strong> {user.rarity}</p>
             <p><strong>Joined:</strong> {new Date(user.joinedAt).toLocaleString()}</p>
+            {user.lastKnownIp && <p><strong>Last IP:</strong> <span className="font-mono text-cyan-400">{user.lastKnownIp}</span></p>}
+          </div>
+          <div className="mt-6 pt-4 border-t border-[var(--border-strong)]">
+            <h3 className="font-semibold mb-3">Edit Identity</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-[var(--text-muted)]">Username</label>
+                <input type="text" value={editData.username} onChange={e => setEditData({...editData, username: e.target.value})} className="w-full bg-[var(--bg-hover)] border border-[var(--border-strong)] rounded-lg px-3 py-2 text-sm mt-1" />
+              </div>
+              <div>
+                <label className="text-xs text-[var(--text-muted)]">Anonymous Name</label>
+                <input type="text" value={editData.anonymousName} onChange={e => setEditData({...editData, anonymousName: e.target.value})} className="w-full bg-[var(--bg-hover)] border border-[var(--border-strong)] rounded-lg px-3 py-2 text-sm mt-1" />
+              </div>
+              <button onClick={handleDetailsSave} className="admin-action-btn w-full bg-blue-500/20 text-blue-400">Save Name Changes</button>
+            </div>
           </div>
         </div>
-        <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+        <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)] lg:col-span-2">
           <h2 className="font-semibold mb-4">Moderation Actions</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/ban`, 'PATCH', null, `Are you sure you want to ${user.isBanned ? 'unban' : 'ban'} this user?`)} className={`admin-action-btn ${user.isBanned ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>{user.isBanned ? 'Unban' : 'Ban'} User</button>
             <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/mute`, 'PATCH', null, `Are you sure you want to ${user.isMuted ? 'unmute' : 'mute'} this user?`)} className={`admin-action-btn ${user.isMuted ? 'bg-green-500/20 text-green-400' : 'bg-orange-500/20 text-orange-400'}`}>{user.isMuted ? 'Unmute' : 'Mute'}</button>
             <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/shadowban`, 'PATCH', null, `Are you sure you want to ${user.isShadowbanned ? 'un-shadowban' : 'shadowban'} this user?`)} className={`admin-action-btn ${user.isShadowbanned ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>{user.isShadowbanned ? 'Un-Shadowban' : 'Shadowban'}</button>
@@ -3793,10 +3982,25 @@ const AdminUserDetail = () => {
             <button onClick={() => { const rarity = prompt('Set new rarity (COMMON, UNCOMMON, RARE, EXCLUSIVE, LEGENDARY, MYTHIC):'); if (rarity) handleAdminAction(`/api/admin/users/${userId}/rarity`, 'PATCH', { rarity: rarity.toUpperCase() }); }} className="admin-action-btn bg-yellow-500/20 text-yellow-400">Set Rarity</button>
             <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/avatar`, 'PATCH', null, 'Clear this user\'s custom avatar?')} className="admin-action-btn bg-yellow-500/20 text-yellow-400">Clear Avatar</button>
             <button onClick={() => { const msg = prompt('Enter system message to send:'); if (msg) handleAdminAction(`/api/admin/users/${userId}/dm`, 'POST', { message: msg }); }} className="admin-action-btn bg-cyan-500/20 text-cyan-400">Send System DM</button>
-            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/whispers`, 'DELETE', null, 'DANGER: Wipe all whispers from this user? This cannot be undone.')} className="admin-action-btn bg-red-600/30 text-red-400">Wipe History</button>
-            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}`, 'DELETE', null, 'EXTREME DANGER: Permanently delete this user and all their content? This cannot be undone.')} className="admin-action-btn bg-red-800/40 text-red-400">Hard Delete User</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/whispers`, 'DELETE', null, 'DANGER: Wipe all whispers from this user? This cannot be undone.')} className="admin-action-btn bg-red-600/30 text-red-400">Wipe History</button><button onClick={() => handleAdminAction(`/api/admin/users/${userId}`, 'DELETE', null, 'EXTREME DANGER: Permanently delete this user and all their content? This cannot be undone.')} className="admin-action-btn bg-red-800/40 text-red-400">Hard Delete User</button>
           </div>
         </div>
+        {user.ipHistory && user.ipHistory.length > 0 && (
+          <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)] md:col-span-2 lg:col-span-3">
+            <h2 className="font-semibold mb-4">IP History</h2>
+            <div className="space-y-3 max-h-80 overflow-y-auto text-sm">
+              {user.ipHistory.slice().reverse().map((entry, index) => (
+                <div key={index} className="flex justify-between items-center p-2 rounded-md hover:bg-[var(--bg-hover)]">
+                  <div>
+                    <p className="font-mono text-cyan-400">{entry.ip}</p>
+                    <p className="text-xs text-[var(--text-muted)]">{entry.action}</p>
+                  </div>
+                  <p className="text-xs text-[var(--text-muted)]">{new Date(entry.timestamp).toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
