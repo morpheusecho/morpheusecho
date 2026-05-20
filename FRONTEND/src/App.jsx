@@ -330,6 +330,21 @@ const ThemeProvider = ({ children }) => {
       .theme-amoled .radio-btn:hover {
         background-color: rgba(255, 255, 255, 0.1) !important;
       }
+      .admin-action-btn {
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        font-size: 0.75rem;
+        line-height: 1rem;
+        text-align: center;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+      }
+      .admin-action-btn:hover {
+        opacity: 0.9;
+        border-color: currentColor;
+      }
+      .admin-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     `;
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
@@ -1817,7 +1832,7 @@ const HomePage = () => {
   return (
     <div className="min-h-screen pb-20 md:pb-0">
       <div className="sticky top-0 z-10 bg-[var(--bg-secondary)] backdrop-blur-xl border-b border-[var(--border-light)]">
-        <div className="absolute top-0 left-0 w-20 h-20 z-50 cursor-pointer opacity-0 hover:opacity-100 hover:bg-red-500/20 transition-all duration-300 rounded-br-3xl flex items-start justify-start p-2" onDoubleClick={() => navigate('/admin')} title="Top Secret Area (Double Click or Ctrl+Shift+A)">
+        <div className="absolute top-0 left-0 w-20 h-20 z-50 cursor-pointer opacity-0 rounded-br-3xl flex items-start justify-start p-2" onDoubleClick={() => navigate('/admin')} title="Top Secret Area (Double Click or Ctrl+Shift+A)">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         </div>
         <div className="p-4">
@@ -2841,6 +2856,27 @@ const ProfilePage = () => {
   const [passwordStatus, setPasswordStatus] = useState({ error: '', success: '', loading: false });
   const { updateUser, logout } = useAuth();
 
+  const handleAdminAction = async (endpoint, method, body, confirmation) => {
+    if (confirmation && !window.confirm(confirmation)) return;
+    
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}${endpoint}`, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : null
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Action successful! ${data.message || data.newIdentity || ''}`);
+        fetchUser(); // Refresh user data
+      } else {
+        alert(`Action failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      alert('An error occurred.');
+    }
+  };
   // Track previous target to instantly reset state upon navigation
   const prevTargetIdRef = useRef(targetId);
 
@@ -3702,6 +3738,28 @@ const AdminUserDetail = () => {
   if (loading) return <div>Loading user details...</div>;
   if (!user) return <div>User not found.</div>;
 
+  const handleAdminAction = async (endpoint, method, body, confirmation) => {
+    if (confirmation && !window.confirm(confirmation)) return;
+    
+    try {
+      const token = localStorage.getItem('morpheus_token');
+      const res = await fetch(`${SOCKET_URL}${endpoint}`, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : null
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Action successful! ${data.message || data.newIdentity || ''}`);
+        fetchUser(); // Refresh user data
+      } else {
+        alert(`Action failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      alert('An error occurred.');
+    }
+  };
+
   return (
     <div>
       <Link to="/admin/users" className="text-sm text-[var(--accent-primary)] hover:underline mb-4 inline-block">
@@ -3723,7 +3781,21 @@ const AdminUserDetail = () => {
         </div>
         <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
           <h2 className="font-semibold mb-4">Moderation Actions</h2>
-          {/* Moderation buttons can be added here */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/ban`, 'PATCH', null, `Are you sure you want to ${user.isBanned ? 'unban' : 'ban'} this user?`)} className={`admin-action-btn ${user.isBanned ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>{user.isBanned ? 'Unban' : 'Ban'} User</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/mute`, 'PATCH', null, `Are you sure you want to ${user.isMuted ? 'unmute' : 'mute'} this user?`)} className={`admin-action-btn ${user.isMuted ? 'bg-green-500/20 text-green-400' : 'bg-orange-500/20 text-orange-400'}`}>{user.isMuted ? 'Unmute' : 'Mute'}</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/shadowban`, 'PATCH', null, `Are you sure you want to ${user.isShadowbanned ? 'un-shadowban' : 'shadowban'} this user?`)} className={`admin-action-btn ${user.isShadowbanned ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>{user.isShadowbanned ? 'Un-Shadowban' : 'Shadowban'}</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/xp`, 'POST', null, 'Grant 1000 XP to this user?')} className="admin-action-btn bg-blue-500/20 text-blue-400">Grant 1000 XP</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/reset-xp`, 'PATCH', null, 'Reset this user\'s XP and level to 0?')} className="admin-action-btn bg-red-500/20 text-red-400">Reset XP</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/badge`, 'POST', null, 'Grant VIP badge to this user?')} className="admin-action-btn bg-purple-500/20 text-purple-400">Grant VIP Badge</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/clear-badges`, 'PATCH', null, 'Clear all badges from this user?')} className="admin-action-btn bg-red-500/20 text-red-400">Clear Badges</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/reroll`, 'POST', null, 'Force a new identity for this user? This is permanent.')} className="admin-action-btn bg-teal-500/20 text-teal-400">Reroll Identity</button>
+            <button onClick={() => { const rarity = prompt('Set new rarity (COMMON, UNCOMMON, RARE, EXCLUSIVE, LEGENDARY, MYTHIC):'); if (rarity) handleAdminAction(`/api/admin/users/${userId}/rarity`, 'PATCH', { rarity: rarity.toUpperCase() }); }} className="admin-action-btn bg-yellow-500/20 text-yellow-400">Set Rarity</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/avatar`, 'PATCH', null, 'Clear this user\'s custom avatar?')} className="admin-action-btn bg-yellow-500/20 text-yellow-400">Clear Avatar</button>
+            <button onClick={() => { const msg = prompt('Enter system message to send:'); if (msg) handleAdminAction(`/api/admin/users/${userId}/dm`, 'POST', { message: msg }); }} className="admin-action-btn bg-cyan-500/20 text-cyan-400">Send System DM</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/whispers`, 'DELETE', null, 'DANGER: Wipe all whispers from this user? This cannot be undone.')} className="admin-action-btn bg-red-600/30 text-red-400">Wipe History</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}`, 'DELETE', null, 'EXTREME DANGER: Permanently delete this user and all their content? This cannot be undone.')} className="admin-action-btn bg-red-800/40 text-red-400">Hard Delete User</button>
+          </div>
         </div>
       </div>
     </div>

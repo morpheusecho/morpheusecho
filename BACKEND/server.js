@@ -1603,7 +1603,10 @@ app.get('/api/users/:id', authenticate, async (req, res) => {
         following: user.following.length,
         joinedAt: user.createdAt,
         isAdmin: user.isAdmin,
-        isFollowing
+        isFollowing,
+        isBanned: user.isBanned,
+        isMuted: user.isMuted,
+        isShadowbanned: user.isShadowbanned
       }
     });
   } catch (error) {
