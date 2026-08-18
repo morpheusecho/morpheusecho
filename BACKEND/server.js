@@ -838,6 +838,10 @@ app.post('/api/auth/signup', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+      return res.status(400).json({ error: 'Username must be 3-20 alphanumeric characters or underscores' });
+    }
+
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }

@@ -1699,6 +1699,7 @@ const IdentityRevealPage = () => {
                 onMouseUp={handleHoldEnd}
                 onMouseLeave={handleHoldEnd}
                 onTouchStart={handleHoldStart}
+                onTouchMove={handleHoldEnd}
                 onTouchEnd={handleHoldEnd}
                 onTouchCancel={handleHoldEnd}
               >

@@ -9,8 +9,8 @@ let swContent = fs.readFileSync(swPath, 'utf8');
 
 // Replace the cache name with a unique timestamp-based version
 const newVersion = `morpheus-echo-v${Date.now()}`;
-swContent = swContent.replace(/const CACHE_NAME\s*=\s*'[^']+';/, `const CACHE_NAME = '${newVersion}';`);
+swContent = swContent.replace(/const CACHE_NAME = 'morpheus-echo-v\d+';/, `const CACHE_NAME = '${newVersion}';`);
 
 // Save the dynamically updated file
 fs.writeFileSync(swPath, swContent);
-console.log(`✅ Service Worker cache version automatically updated to: ${newVersion}`);
+console.log(`✅ Service Worker cache version updated to: ${newVersion}`);

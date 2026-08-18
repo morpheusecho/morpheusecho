@@ -45,10 +45,12 @@ if (!rootElement) {
 
         // Listen for new code pushed to the server (GitHub/Deployment updates)
         registration.addEventListener('updatefound', () => {
+          console.log('New PWA version found, installing...');
           const newWorker = registration.installing;
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New update found - forcefully reload the page to apply the latest frontend code
+              // New update is ready - forcefully reload the page to apply the latest frontend code
+              console.log('New PWA version installed. Reloading page to apply update.');
               window.location.reload();
             }
           });
