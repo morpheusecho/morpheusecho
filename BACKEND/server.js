@@ -2590,6 +2590,55 @@ app.post('/api/admin/users/bulk-action', authenticate, async (req, res) => {
   }
 });
 
+// Bulk User Actions
+app.post('/api/admin/users/bulk-action', authenticate, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ error: 'Unauthorized' });
+    const { action, userIds } = req.body;
+
+    if (!action || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ error: 'Invalid request body' });
+    }
+
+    let update = {};
+    let logAction = '';
+
+    switch (action) {
+      case 'ban':
+        update = { isBanned: true };
+        logAction = 'BULK_BAN';
+        break;
+      case 'unban':
+        update = { isBanned: false };
+        logAction = 'BULK_UNBAN';
+        break;
+      case 'mute':
+        update = { isMuted: true };
+        logAction = 'BULK_MUTE';
+        break;
+      case 'unmute':
+        update = { isMuted: false };
+        logAction = 'BULK_UNMUTE';
+        break;
+      case 'delete':
+        await Confession.deleteMany({ author: { $in: userIds } });
+        await Comment.deleteMany({ author: { $in: userIds } });
+        const deleteResult = await User.deleteMany({ _id: { $in: userIds } });
+        await logAdminAction(req.user._id, 'BULK_DELETE_USERS', { message: `Deleted ${deleteResult.deletedCount} users.` });
+        return res.json({ success: true, message: `Deleted ${deleteResult.deletedCount} users.` });
+      default:
+        return res.status(400).json({ error: 'Invalid action' });
+    }
+
+    const result = await User.updateMany({ _id: { $in: userIds } }, { $set: update });
+    await logAdminAction(req.user._id, logAction, { message: `Affected ${result.nModified || result.modifiedCount} users.` });
+
+    res.json({ success: true, message: `Updated ${result.nModified || result.modifiedCount} users.` });
+  } catch (err) {
+    res.status(500).json({ error: 'Bulk action failed' });
+  }
+});
+
 // Update User Details
 app.patch('/api/admin/users/:id/details', authenticate, async (req, res) => {
   try {

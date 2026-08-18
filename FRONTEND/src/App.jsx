@@ -4076,3 +4076,138 @@ const App = () => {
 };
 
 export default App;
+
+  return (
+    <div>
+      <Link to="/admin/users" className="text-sm text-[var(--accent-primary)] hover:underline mb-4 inline-block">
+        &larr; Back to User List
+      </Link>
+      <h1 className="text-3xl font-bold mb-2">{user.anonymousName}</h1>
+      <p className="text-[var(--text-muted)] mb-6">Username: {user.username}</p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)]">
+          <h2 className="font-semibold mb-4">User Details</h2>
+          <div className="space-y-2 text-sm">
+            <p><strong>ID:</strong> {user.id}</p>
+            <p><strong>Level:</strong> {user.level}</p>
+            <p><strong>XP:</strong> {user.xp}</p>
+            <p><strong>Rarity:</strong> {user.rarity}</p>
+            <p><strong>Joined:</strong> {new Date(user.joinedAt).toLocaleString()}</p>
+            {user.lastKnownIp && <p><strong>Last IP:</strong> <span className="font-mono text-cyan-400">{user.lastKnownIp}</span></p>}
+          </div>
+          <div className="mt-6 pt-4 border-t border-[var(--border-strong)]">
+            <h3 className="font-semibold mb-3">Edit Identity</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-[var(--text-muted)]">Username</label>
+                <input type="text" value={editData.username} onChange={e => setEditData({...editData, username: e.target.value})} className="w-full bg-[var(--bg-hover)] border border-[var(--border-strong)] rounded-lg px-3 py-2 text-sm mt-1" />
+              </div>
+              <div>
+                <label className="text-xs text-[var(--text-muted)]">Anonymous Name</label>
+                <input type="text" value={editData.anonymousName} onChange={e => setEditData({...editData, anonymousName: e.target.value})} className="w-full bg-[var(--bg-hover)] border border-[var(--border-strong)] rounded-lg px-3 py-2 text-sm mt-1" />
+              </div>
+              <button onClick={handleDetailsSave} className="admin-action-btn w-full bg-blue-500/20 text-blue-400">Save Name Changes</button>
+            </div>
+          </div>
+        </div>
+        <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)] lg:col-span-2">
+          <h2 className="font-semibold mb-4">Moderation Actions</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/ban`, 'PATCH', null, `Are you sure you want to ${user.isBanned ? 'unban' : 'ban'} this user?`)} className={`admin-action-btn ${user.isBanned ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>{user.isBanned ? 'Unban' : 'Ban'} User</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/mute`, 'PATCH', null, `Are you sure you want to ${user.isMuted ? 'unmute' : 'mute'} this user?`)} className={`admin-action-btn ${user.isMuted ? 'bg-green-500/20 text-green-400' : 'bg-orange-500/20 text-orange-400'}`}>{user.isMuted ? 'Unmute' : 'Mute'}</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/shadowban`, 'PATCH', null, `Are you sure you want to ${user.isShadowbanned ? 'un-shadowban' : 'shadowban'} this user?`)} className={`admin-action-btn ${user.isShadowbanned ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>{user.isShadowbanned ? 'Un-Shadowban' : 'Shadowban'}</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/xp`, 'POST', null, 'Grant 1000 XP to this user?')} className="admin-action-btn bg-blue-500/20 text-blue-400">Grant 1000 XP</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/reset-xp`, 'PATCH', null, 'Reset this user\'s XP and level to 0?')} className="admin-action-btn bg-red-500/20 text-red-400">Reset XP</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/badge`, 'POST', null, 'Grant VIP badge to this user?')} className="admin-action-btn bg-purple-500/20 text-purple-400">Grant VIP Badge</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/clear-badges`, 'PATCH', null, 'Clear all badges from this user?')} className="admin-action-btn bg-red-500/20 text-red-400">Clear Badges</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/reroll`, 'POST', null, 'Force a new identity for this user? This is permanent.')} className="admin-action-btn bg-teal-500/20 text-teal-400">Reroll Identity</button>
+            <button onClick={() => { const rarity = prompt('Set new rarity (COMMON, UNCOMMON, RARE, EXCLUSIVE, LEGENDARY, MYTHIC):'); if (rarity) handleAdminAction(`/api/admin/users/${userId}/rarity`, 'PATCH', { rarity: rarity.toUpperCase() }); }} className="admin-action-btn bg-yellow-500/20 text-yellow-400">Set Rarity</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/avatar`, 'PATCH', null, 'Clear this user\'s custom avatar?')} className="admin-action-btn bg-yellow-500/20 text-yellow-400">Clear Avatar</button>
+            <button onClick={() => { const msg = prompt('Enter system message to send:'); if (msg) handleAdminAction(`/api/admin/users/${userId}/dm`, 'POST', { message: msg }); }} className="admin-action-btn bg-cyan-500/20 text-cyan-400">Send System DM</button>
+            <button onClick={() => handleAdminAction(`/api/admin/users/${userId}/whispers`, 'DELETE', null, 'DANGER: Wipe all whispers from this user? This cannot be undone.')} className="admin-action-btn bg-red-600/30 text-red-400">Wipe History</button><button onClick={() => handleAdminAction(`/api/admin/users/${userId}`, 'DELETE', null, 'EXTREME DANGER: Permanently delete this user and all their content? This cannot be undone.')} className="admin-action-btn bg-red-800/40 text-red-400">Hard Delete User</button>
+          </div>
+        </div>
+        {user.ipHistory && user.ipHistory.length > 0 && (
+          <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border-light)] md:col-span-2 lg:col-span-3">
+            <h2 className="font-semibold mb-4">IP History</h2>
+            <div className="space-y-3 max-h-80 overflow-y-auto text-sm">
+              {user.ipHistory.slice().reverse().map((entry, index) => (
+                <div key={index} className="flex justify-between items-center p-2 rounded-md hover:bg-[var(--bg-hover)]">
+                  <div>
+                    <p className="font-mono text-cyan-400">{entry.ip}</p>
+                    <p className="text-xs text-[var(--text-muted)]">{entry.action}</p>
+                  </div>
+                  <p className="text-xs text-[var(--text-muted)]">{new Date(entry.timestamp).toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// =============================================================================
+// MAIN APP LAYOUT
+// =============================================================================
+const AppLayout = ({ children }) => {
+  const location = useLocation();
+  return (
+    <div className="min-h-screen bg-transparent">
+      <Sidebar />
+      <main className="main-content">
+        <AnimatePresence mode="wait">
+          <motion.div 
+            key={location.pathname}
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.01, ease: "easeInOut" }}
+            className="page-container"
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
+      </main>
+      {location.pathname.startsWith('/admin') ? null : <BottomNav />}
+    </div>
+  );
+};
+
+// =============================================================================
+// MAIN APP COMPONENT
+// =============================================================================
+const App = () => {
+  useEffect(() => {
+    // Store cookie on browser visit to track returning users
+    document.cookie = "morpheus_visited=true; max-age=31536000; path=/; SameSite=Lax";
+  }, []);
+
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <SocketProvider>
+          <ThemeToggle />
+          <InstallPWA />
+          <PeacefulBackground />
+          <Routes>
+            <Route path="/welcome" element={<WelcomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/reveal" element={<IdentityRevealPage />} />
+            <Route path="/" element={<ProtectedRoute><AppLayout><HomePage /></AppLayout></ProtectedRoute>} />
+            <Route path="/admin/*" element={<AdminProtectedRoute><AdminPage /></AdminProtectedRoute>} />
+            <Route path="/create" element={<ProtectedRoute><AppLayout><CreatePage /></AppLayout></ProtectedRoute>} />
+            <Route path="/radio" element={<ProtectedRoute><AppLayout><RadioPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/messages" element={<ProtectedRoute><AppLayout><MessagesPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><AppLayout><NotificationsPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/profile/:id" element={<ProtectedRoute><AppLayout><ProfilePage /></AppLayout></ProtectedRoute>} />
+          </Routes>
+        </SocketProvider>
+      </AuthProvider>
+    </ThemeProvider>
+  );
+};
+
+export default App;
